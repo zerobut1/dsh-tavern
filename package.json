@@ -1,6 +1,7 @@
 {
   "name": "dsh-profile-tavern",
   "version": "3.1.0",
+  "packageManager": "pnpm@11.25.0",
   "scripts": {
     "build:client": "node bin/build-tavern-client.mjs",
     "check:client": "node bin/build-tavern-client.mjs --check",

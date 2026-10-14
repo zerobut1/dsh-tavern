@@ -43,3 +43,4 @@ data/
 /examples/dafeiyu-card/*.dshcard
 /examples/dshcard-hello/*.dshcard
 *.bak-*
+.kimix_cache
