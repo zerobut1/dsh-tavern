@@ -218,6 +218,7 @@
                 const list = [], seen = new Set();
                 function push(entry) { if (!entry || !entry.id || seen.has(entry.id)) return; seen.add(entry.id); list.push(entry); }
                 push({ id: "header:export", label: "导出" });
+                push({ id: "header:subagents", label: "子代理" });
                 push({ id: "dsh-tavern:status", label: "酒馆状态" });
                 catalog.forEach(push);
                 return list;
@@ -227,8 +228,8 @@
                 return id => map.get(id) || { id: id, label: String(id).replace(/^[^:]+:/, "") };
             }, [known]);
             const groups = React.useMemo(function () {
-                const headerTools = known.filter(entry => entry.id === "header:export");
-                return [["顶栏工具", headerTools]].concat(tavernStartGroups(known.filter(entry => entry.id !== "header:export"), tavernUiExtensions.startGroups()));
+                const headerTools = known.filter(entry => entry.id.startsWith("header:"));
+                return [["顶栏工具", headerTools]].concat(tavernStartGroups(known.filter(entry => !entry.id.startsWith("header:")), tavernUiExtensions.startGroups()));
             }, [known]);
             async function save(next) {
                 setBusy(true); setNotice("");

@@ -191,7 +191,13 @@ export function createBackgroundAgentSessions(options, task) {
     const residentSessionId = startOver || needsSession && requestedSessionId === '' ? '' : str(residentSessionByParent.get(key))
     let traceSessionId = requestedSessionId || (persistent ? residentSessionId : '') || makeId()
     const abandoned = abandonedSessions.has(traceSessionId) || Boolean(await options.retirement?.isRetired(traceSessionId))
-    if (abandoned) traceSessionId = makeId()
+    if (abandoned) {
+      traceSessionId = makeId()
+      // A rollback may still name the ended session. Its boundary cannot be
+      // applied to the fresh session that replaces it.
+      input = { ...input, rewindTo: undefined }
+      runtimeInput.rewindTo = undefined
+    }
     const descriptor = descriptorFor(input, persistent)
     const parentDepth = Number(parent.session.header && parent.session.header.delegationDepth)
     const requestedMaxTokens = Number(input.maxTokens)
@@ -349,6 +355,36 @@ export function createBackgroundAgentSessions(options, task) {
     return activeSessions.has(id) || residentHandles.has(id)
   }
 
+  function isActive(sessionId) {
+    return activeSessions.has(str(sessionId))
+  }
+
+  async function retire(sessionId, parentSessionId) {
+    const id = str(sessionId), parent = str(parentSessionId)
+    if (!id || !parent) throw new Error('关闭子代理缺少会话编号')
+    if (stopped) throw new Error('后台 Agent 管理器已关闭')
+    if (activeSessions.has(id) || queues.has(parent)) throw new Error('子代理仍有任务，请等待完成或先停止')
+    return enqueue(parent, async () => {
+      const resident = residentHandles.get(id)
+      const agent = resident?.handle.agent || agents.get(id)
+      if (activeSessions.has(id) || agent?.phase?.kind === 'running' || agent?.status === 'running') throw new Error('子代理仍在运行，请先停止')
+      if (resident && resident.parentSessionId !== parent) throw new Error('子代理不属于当前对话')
+      if (agent && !resident) throw new Error('请先关闭此子代理的对话页，再返回主对话操作')
+      // Persist the cutoff before releasing residency: neither a restart nor
+      // an old checkpoint may restore this conversation's task history.
+      await options.retirement.retire(id, parent)
+      abandonedSessions.add(id)
+      if (resident) {
+        await releaseResident(id, resident)
+        if (residentHandles.has(id)) throw new Error('子代理上下文已停用，但实例释放失败，请稍后重试')
+      }
+      for (const [key, value] of residentSessionByParent) if (value === id) residentSessionByParent.delete(key)
+      requestSessions.delete(id)
+      requestContexts.delete(id)
+      options.onRetired?.(id, parent)
+    })
+  }
+
   function requestContext(sessionId) {
     return requestContexts.get(str(sessionId)) || null
   }
@@ -436,5 +472,5 @@ export function createBackgroundAgentSessions(options, task) {
       if (requestContexts.get(id)?.parentSessionId === parent || JSON.parse(resident.key)[0] === parent) await releaseResident(id, resident)
     }
   }
-  return Object.freeze({ progress, run, owns, requestContext, requestSession, compact, cancel, reapIdle, dispose, releaseFor })
+  return Object.freeze({ progress, run, owns, isActive, retire, requestContext, requestSession, compact, cancel, reapIdle, dispose, releaseFor })
 }

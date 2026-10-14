@@ -69,6 +69,86 @@
                     ));
             }
 
+			function TavernSubagentMenu(props) {
+				const owner = props.sessions.subagentAddress(props.sessionId)?.parentSessionId || props.sessionId;
+				const mode = useTavernSessionMode(owner);
+				const [open, setOpen] = React.useState(false);
+				const [items, setItems] = React.useState([]);
+				const [parentSessionId, setParentSessionId] = React.useState("");
+				const [pending, setPending] = React.useState("");
+				const [busy, setBusy] = React.useState(false);
+				const [error, setError] = React.useState("");
+				const root = React.useRef(null);
+				React.useEffect(function () { setOpen(false); }, [props.sessionId]);
+				React.useEffect(function () {
+					if (!open) return;
+					function outside(event) { if (!root.current || !root.current.contains(event.target)) setOpen(false); }
+					function escape(event) { if (event.key === "Escape") { setOpen(false); root.current?.querySelector("[aria-haspopup]")?.focus(); } }
+					document.addEventListener("pointerdown", outside, true);
+					document.addEventListener("keydown", escape);
+					return function () { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("keydown", escape); };
+				}, [open]);
+				async function load() {
+					setError("");
+					const result = await rpc("listGameSubagents", {}, owner);
+					setParentSessionId(result.parentSessionId || owner);
+					setItems(Array.isArray(result.subagents) ? result.subagents : []);
+				}
+				async function refreshCatalog(parentId) {
+					const sessions = props.sessions;
+					const target = parentId || parentSessionId || owner;
+					try { if (typeof sessions.refreshProjections === "function") sessions.refreshProjections(target); } catch (err) { console.warn("[DSH Tavern] 子代理目录刷新失败", err); }
+					try { if (typeof sessions.refreshSubagents === "function") await sessions.refreshSubagents(target); } catch (err) { console.warn("[DSH Tavern] 子代理目录刷新失败", err); }
+					try { if (typeof sessions.refresh === "function") await sessions.refresh(); } catch (err) { console.warn("[DSH Tavern] 会话列表刷新失败", err); }
+				}
+				function toggle() {
+					const next = !open;
+					setOpen(next);
+					setPending("");
+					if (next) {
+						setBusy(true);
+						load().catch(function (err) { setError(String(err && err.message || err)); }).finally(function () { setBusy(false); });
+					}
+				}
+				async function closeIds(ids) {
+					setBusy(true); setError("");
+					try {
+						const result = await rpc("closeGameSubagents", { ids: ids }, owner);
+						setItems(Array.isArray(result.subagents) ? result.subagents : []);
+						setParentSessionId(result.parentSessionId || parentSessionId);
+						setPending("");
+						if (result.refused && result.refused.length) setError(result.refused[0].reason || "不能关闭");
+						await refreshCatalog(result.parentSessionId);
+					} catch (err) { setError(String(err && err.message || err)); }
+					finally { setBusy(false); }
+				}
+				if (!isPlayMode(mode)) return null;
+				const closeable = items.filter(function (item) { return item.closeable; });
+				const h = React.createElement;
+				return h("div", { className: "dsh-tavern-more-actions dsh-tavern-subagent-menu", ref: root },
+					h("button", { type: "button", className: "dsh-tavern-subagent-action", "aria-label": "子代理", title: "关闭子代理并结束旧上下文", "aria-haspopup": "dialog", "aria-expanded": open, onClick: toggle },
+						h("svg", { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" },
+							h("path", { d: "M8 7h11M8 12h11M8 17h11M5 7h.01M5 12h.01M5 17h.01" })),
+						h("span", { className: "dsh-tavern-header-action-label" }, "子代理")),
+					h("div", { className: "dsh-tavern-more-menu dsh-tavern-subagent-panel", role: "dialog", "aria-label": "关闭子代理", hidden: !open },
+						h("p", { className: "dsh-tavern-subagent-note" }, "关闭后结束旧上下文，下次任务自动新建。正文、变量和图片保留；旧执行记录仅供回看。"),
+						error ? h("p", { className: "dsh-card-error", role: "alert" }, error) : null,
+						busy && !items.length ? h("p", { className: "dsh-tavern-subagent-note" }, "正在读取…") : null,
+						!busy && !items.length && !error ? h("p", { className: "dsh-tavern-subagent-note" }, "没有还显示着的子代理。") : null,
+						h("div", { className: "dsh-tavern-subagent-list" }, items.map(function (item) {
+							const armed = pending === item.id;
+							return h("div", { key: item.id, className: "dsh-tavern-subagent-row" },
+								h("span", { className: "dsh-tavern-subagent-label", title: item.reason || item.label },
+									item.label,
+									h("small", null, item.activity === "running" ? "正在运行" : (item.reason || "当前未运行"))),
+								item.closeable ? h("button", { type: "button", disabled: busy, onClick: function () { if (armed) void closeIds([item.id]); else setPending(item.id); } }, armed ? "确认关闭" : "关闭") : null);
+						})),
+						closeable.length > 1 ? h("button", { type: "button", className: "dsh-tavern-subagent-rest", disabled: busy, onClick: function () {
+							if (pending === "*") void closeIds(closeable.map(function (item) { return item.id; }));
+							else setPending("*");
+						} }, pending === "*" ? "确认关闭 " + closeable.length + " 个" : "关闭全部可关闭的") : null));
+			}
+
 			function TavernCompactionAction(props) {
 				const [busy, setBusy] = React.useState(false);
 				const [resultLabel, setResultLabel] = React.useState("");
@@ -1100,7 +1180,7 @@
             interactions, useCandidatePanel, useCandidateGuidePanel, useRegenPanel
         });
         const { HeaderItems: TavernHeaderItems } = createTavernHeaderFeature({
-            StatusAction: TavernConversationSettingsAction, ExportAction: TavernConversationExportAction,
+            StatusAction: TavernConversationSettingsAction, ExportAction: TavernConversationExportAction, SubagentAction: TavernSubagentMenu,
             openPage: (ctx, id, sessionId) => openTavernSidebarTab(ctx, { type: id }, { sessionId }),
             openWorldbooks: (node, sessionId) => worldBookSwitcherFeature.open(node, sessionId)
         });

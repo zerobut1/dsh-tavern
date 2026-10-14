@@ -1,5 +1,13 @@
 const path = 'background-session-retirement.json'
 
+/** End an idle child without deleting story data or historical session logs. */
+export function subagentCloseDecision(input = {}) {
+  if (!input.owned) return { closeable: false, reason: '不属于本局，或正在被其他对话使用' }
+  if (input.running) return { closeable: false, reason: '仍在运行，请先停止这一轮' }
+  if (input.hasChildren) return { closeable: false, reason: '下面还有子代理' }
+  return { closeable: true, reason: '' }
+}
+
 /** Native Session logs remain readable; only retired Tavern workers lose discovery/reuse. */
 export function createBackgroundSessionRetirement(store, { readState, isRunning } = {}) {
   async function records() { return (await store.readJson(path)) || {} }
@@ -9,6 +17,7 @@ export function createBackgroundSessionRetirement(store, { readState, isRunning 
     async load() { for (const id of Object.keys(await records())) known.add(id) },
     ids() { return known },
     async isRetired(id) { return Object.hasOwn(await records(), id) },
+    async retiredIds(parentId) { return Object.entries(await records()).filter(([, record]) => record.parentId === parentId).map(([id]) => id) },
     async retire(id, parentId) {
       if (!id || !parentId) throw new Error('后台会话退休缺少会话编号')
       await store.updateJson(path, old => ({ ...old, [id]: { parentId, retiredAt: Date.now() } }))
@@ -37,8 +46,8 @@ export function createBackgroundSessionRetirement(store, { readState, isRunning 
       return rows.filter(row => {
         const record = retired[row.id]
         // Never hide unrelated children, still-running consumers or a subtree.
-        return row.kind !== 'child' || !record || record.parentId !== (row.parentId || parentId)
-          || row.activity === 'running' || isRunning?.(row.id) === true || row.hasChildren === true
+        return !['child', 'diagnostic'].includes(row.kind) || !record || record.parentId !== (row.parentId || parentId)
+          || (isRunning ? isRunning(row.id) === true : row.activity === 'running') || row.hasChildren === true
       })
     }
   }

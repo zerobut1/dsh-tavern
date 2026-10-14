@@ -10,9 +10,9 @@ import { DEFAULT_HEADER_ITEMS, applyTavernSettingsPatch, presentTavernSettings }
 const client = await readFile(new URL('../tavern-plugin/lib/client.js', import.meta.url), 'utf8')
 const css = await readFile(new URL('../tavern-plugin/lib/client-assets/tavern.css', import.meta.url), 'utf8')
 
-test('顶栏默认值与改动前一致：酒馆状态、导出，图标加文字', () => {
-  assert.deepEqual({ display: DEFAULT_HEADER_ITEMS.display, items: [...DEFAULT_HEADER_ITEMS.items] }, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export'] })
-  assert.deepEqual(presentTavernSettings({}, {}).headerItems, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export'] })
+test('自定义顶栏默认包含酒馆状态、导出和子代理，图标加文字', () => {
+  assert.deepEqual({ display: DEFAULT_HEADER_ITEMS.display, items: [...DEFAULT_HEADER_ITEMS.items] }, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export', 'header:subagents'] })
+  assert.deepEqual(presentTavernSettings({}, {}).headerItems, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export', 'header:subagents'] })
 })
 
 test('顶栏设置去重并按上限截断', () => {
@@ -43,9 +43,9 @@ test('传 null 恢复默认顶栏', () => {
   assert.deepEqual(document.headerItems, { display: 'icon', items: ['dsh-tavern:cards'] })
   document = applyTavernSettingsPatch(document, { headerItems: null })
   assert.equal(Object.hasOwn(document, 'headerItems'), false)
-  assert.deepEqual(presentTavernSettings(document, {}).headerItems, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export'] })
+  assert.deepEqual(presentTavernSettings(document, {}).headerItems, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export', 'header:subagents'] })
   // 存档里损坏的值不会让读取失败。
-  assert.deepEqual(presentTavernSettings({ headerItems: { display: 'nope', items: ['bad id'] } }, {}).headerItems, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export'] })
+  assert.deepEqual(presentTavernSettings({ headerItems: { display: 'nope', items: ['bad id'] } }, {}).headerItems, { display: 'icon-text', items: ['dsh-tavern:status', 'header:export', 'header:subagents'] })
 })
 
 test('getDisplayPreferences 一并返回顶栏设置', async () => {

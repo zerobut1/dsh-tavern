@@ -1,5 +1,5 @@
 // Owns header interaction state and releases its observers/listeners on unmount.
-function createTavernHeaderFeature({ StatusAction, ExportAction, openPage, openWorldbooks }) {
+function createTavernHeaderFeature({ StatusAction, ExportAction, SubagentAction, openPage, openWorldbooks }) {
         function tavernHeaderMenuButton(h, label, iconPath, disabled, onClick) {
             return h("button", { type: "button", role: "menuitem", disabled: disabled, onClick: onClick },
                 h("svg", { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, h("path", { d: iconPath })),
@@ -79,6 +79,7 @@ function createTavernHeaderFeature({ StatusAction, ExportAction, openPage, openW
             const entries = React.useMemo(function () {
                 const map = new Map();
                 map.set("header:export", { id: "header:export", label: "导出" });
+                map.set("header:subagents", { id: "header:subagents", label: "子代理" });
                 map.set("dsh-tavern:status", { id: "dsh-tavern:status", label: "酒馆状态" });
                 catalog.forEach(entry => map.set(entry.id, entry));
                 return map;
@@ -211,6 +212,8 @@ function createTavernHeaderFeature({ StatusAction, ExportAction, openPage, openW
                     ? h(StatusAction, { sessionId: props.sessionId, sessions: props.sessions, open: props.openStatus })
                     : id === "header:export"
                         ? h(ExportAction, { sessionId: props.sessionId, sessions: props.sessions })
+                        : id === "header:subagents"
+                            ? h(SubagentAction, { sessionId: props.sessionId, sessions: props.sessions })
                         : h("button", { type: "button", className: "dsh-tavern-btn dsh-tavern-header-page", title: label, "aria-label": label, onClick: function (event) { activate(id, event.currentTarget); } },
                             tavernStartIcon(id, entry, 18),
                             h("span", { className: "dsh-tavern-header-action-label" }, label));
@@ -233,7 +236,9 @@ function createTavernHeaderFeature({ StatusAction, ExportAction, openPage, openW
                     h("button", { type: "button", className: "dsh-tavern-btn dsh-tavern-header-more-button", "data-tavern-header-trigger": "more", "aria-label": "更多快捷入口", "aria-haspopup": "menu", "aria-expanded": Boolean(more), title: "更多快捷入口", onClick: function () { setContext(null); setMore(more ? null : { x: null, y: null }); } },
                         h("svg", { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.4, strokeLinecap: "round", "aria-hidden": "true" }, h("path", { d: mobile ? "M12 5h.01M12 12h.01M12 19h.01" : "M5 12h.01M12 12h.01M19 12h.01" }))),
                     more ? h("div", { className: "dsh-tavern-more-menu dsh-tavern-header-popup", role: "menu", "aria-label": "更多快捷入口" },
-                        foldedEntries.map(entry => h("button", { key: entry.id, type: "button", role: "menuitem", onClick: function () { setMore(null); activate(entry.id, host.current); } }, tavernStartIcon(entry.id, entries.get(entry.id), 15), entry.label)),
+                        foldedEntries.map(entry => entry.id === "header:subagents"
+                            ? h(SubagentAction, { key: entry.id, sessionId: props.sessionId, sessions: props.sessions })
+                            : h("button", { key: entry.id, type: "button", role: "menuitem", onClick: function () { setMore(null); activate(entry.id, host.current); } }, tavernStartIcon(entry.id, entries.get(entry.id), 15), entry.label)),
                         h("div", { className: "dsh-tavern-header-menu-sep", role: "separator" }),
                         tavernHeaderMenuButton(h, "顶栏设置…", TAVERN_HEADER_GEAR_PATH, false, function () { setMore(null); setDialog(true); })) : null) : null,
                 context ? h("div", { className: "dsh-tavern-more-menu dsh-tavern-header-popup dsh-tavern-header-context", role: "menu", style: { position: "fixed", left: Math.min(context.x, (window.innerWidth || 1024) - 190) + "px", top: Math.min(context.y, (window.innerHeight || 768) - 190) + "px", right: "auto", bottom: "auto" } },

@@ -263,7 +263,7 @@ export function createStoryTimeline(options = {}) {
     if (current.status === 'current' && current.branchId === chat.timeline.branchId && str(current.sessionId) !== '') {
       return { role: participantKey, sessionId: current.sessionId, rewindTo: null, lifetime: participantLifetime(current.lifetime), syncedRevision: current.syncedRevision }
     }
-    if (current.status !== 'needs-rewind' && bound && ['running', 'interrupted', 'failed', 'deferred'].includes(bound.status)) return { role: participantKey, sessionId: bound.startedSessionId, rewindTo: null, lifetime: 'chat', syncedRevision: null }
+    if (!['needs-rewind', 'needs-session'].includes(current.status) && bound && ['running', 'interrupted', 'failed', 'deferred'].includes(bound.status)) return { role: participantKey, sessionId: bound.startedSessionId, rewindTo: null, lifetime: 'chat', syncedRevision: null }
     const rewindTo = Number.isSafeInteger(current.rewindTo) ? current.rewindTo : (Number.isSafeInteger(current.boundary) ? current.boundary : null)
     return {
       role: participantKey,

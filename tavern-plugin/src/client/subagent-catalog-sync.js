@@ -1,6 +1,68 @@
-// The header counts session summaries; its popup reads the lazy catalog.
+// DSH 0.2 renders its header from projectionsBySession, independently of the
+// filtered server catalogs. Filter this display store too, leaving the native
+// projection watermarks, session events and saved logs untouched.
+function syncTavernProjectedSubagentCatalogs(sessions, signals) {
+  const list = sessions.list, originalSet = list.set;
+  let raw = list.getSnapshot(), disposed = false;
+  const retired = new Map(), signatures = new Map(), watches = new Map(), pending = new Set(), again = new Set();
+  function project(snapshot) {
+    let projections = snapshot.projectionsBySession, byId = snapshot.byId;
+    const hidden = new Set();
+    for (const [parentId, ids] of retired) {
+      if (!isPlayMode(tavernSessionModes.values[parentId])) continue;
+      const block = projections[parentId], entries = block?.values.subagentCatalog;
+      for (const id of ids) if (byId[id]?.running !== true && (!byId[id] || byId[id].parentId === parentId)) hidden.add(id);
+      if (!Array.isArray(entries)) continue;
+      const visible = entries.filter(entry => !hidden.has(entry.id));
+      if (visible.length !== entries.length) projections = { ...projections, [parentId]: { ...block, values: { ...block.values, subagentCatalog: visible } } };
+    }
+    for (const id of hidden) if (Object.hasOwn(byId, id)) {
+      if (byId === snapshot.byId) byId = { ...byId };
+      delete byId[id];
+    }
+    const ids = snapshot.ids.filter(id => !hidden.has(id));
+    return projections === snapshot.projectionsBySession && byId === snapshot.byId && ids.length === snapshot.ids.length
+      ? snapshot : { ...snapshot, projectionsBySession: projections, byId, ids };
+  }
+  function publish(snapshot) { raw = snapshot; return originalSet.call(list, project(snapshot)); }
+  async function refresh(parentId) {
+    if (disposed) return;
+    if (pending.has(parentId)) { again.add(parentId); return; }
+    pending.add(parentId);
+    try {
+      const result = await rpc('listGameSubagents', {}, parentId);
+      if (!disposed && Array.isArray(result.retiredIds)) {
+        retired.set(parentId, new Set(result.retiredIds));
+        publish(raw);
+      }
+    } catch (error) { if (!disposed) console.warn('[DSH Tavern] 子代理目录刷新失败', error); }
+    finally { pending.delete(parentId); if (again.delete(parentId)) void refresh(parentId); }
+  }
+  function reconcile() {
+    for (const [parentId, block] of Object.entries(raw.projectionsBySession || {})) {
+      if (!isPlayMode(tavernSessionModes.values[parentId]) || !Array.isArray(block.values.subagentCatalog)) continue;
+      if (!watches.has(parentId) && signals?.subscribe) watches.set(parentId, signals.subscribe(parentId, 'subagents', () => { void refresh(parentId); }));
+      const signature = block.values.subagentCatalog.map(entry => entry.id).join('|');
+      if (signatures.get(parentId) === signature) continue;
+      signatures.set(parentId, signature);
+      void refresh(parentId);
+    }
+  }
+  list.set = publish;
+  const stop = list.subscribe(reconcile);
+  tavernSessionModes.listeners.add(reconcile);
+  reconcile();
+  return function () {
+    disposed = true; stop(); tavernSessionModes.listeners.delete(reconcile);
+    for (const unwatch of watches.values()) unwatch();
+    if (list.set === publish) { list.set = originalSet; originalSet.call(list, raw); }
+  };
+}
+
+// Older hosts count session summaries and read a separate lazy catalog.
 // Refresh an opened catalog when membership/activity changes in the summary feed.
 function syncTavernSubagentCatalogs(sessions, signals) {
+  if (typeof sessions?.list?.set === 'function' && sessions.list.getSnapshot().projectionsBySession) return syncTavernProjectedSubagentCatalogs(sessions, signals);
   if (!sessions || !sessions.list || typeof sessions.refreshSubagents !== 'function') return function () {};
   const signatures = new Map();
   let disposed = false;

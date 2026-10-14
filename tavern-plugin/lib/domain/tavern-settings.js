@@ -47,7 +47,7 @@ function promptSetName(value) {
 const HEADER_ITEM_LIMIT = 24
 const HEADER_ITEM_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,79}$/
 const HEADER_DISPLAYS = ['icon', 'icon-text']
-export const DEFAULT_HEADER_ITEMS = Object.freeze({ display: 'icon-text', items: Object.freeze(['dsh-tavern:status', 'header:export']) })
+export const DEFAULT_HEADER_ITEMS = Object.freeze({ display: 'icon-text', items: Object.freeze(['dsh-tavern:status', 'header:export', 'header:subagents']) })
 
 export function headerItems(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('无效的顶栏设置')

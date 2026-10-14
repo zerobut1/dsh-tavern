@@ -1,6 +1,6 @@
 // The top bar, the start page and the settings list share one catalog of
 // right-sidebar pages, so a page offered in settings is the one the start page opens.
-const TAVERN_HEADER_DEFAULT = Object.freeze({ display: "icon-text", items: Object.freeze(["dsh-tavern:status", "header:export"]) });
+const TAVERN_HEADER_DEFAULT = Object.freeze({ display: "icon-text", items: Object.freeze(["dsh-tavern:status", "header:export", "header:subagents"]) });
 const TAVERN_HEADER_NOT_FOLDED = Object.freeze(["dsh-tavern:status", "header:export"]);
 
 const TAVERN_START_GROUPS = Object.freeze([
