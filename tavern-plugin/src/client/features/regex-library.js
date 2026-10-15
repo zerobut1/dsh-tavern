@@ -2,22 +2,39 @@
             const h = React.createElement;
             const sessionId = props.scope?.sessionId;
             const importInput = React.useRef(null);
+            const refreshVersion = React.useRef(0);
             const [items, setItems] = React.useState(null);
+            const [globalItems, setGlobalItems] = React.useState(null);
             const [busy, setBusy] = React.useState(false);
             const [notice, setNotice] = React.useState("");
             const [error, setError] = React.useState("");
             const askConfirm = useTavernConfirm(sessionId);
             async function refresh() {
+                const version = ++refreshVersion.current;
                 setError("");
-                try { setItems((await rpc("listRegexLibrary", {}, sessionId)).items); }
-                catch (err) { setError(String(err.message || err)); }
+                try {
+                    const [globals, library] = await Promise.all([rpc("listGlobalRegex", {}, sessionId), rpc("listRegexLibrary", {}, sessionId)]);
+                    if (version !== refreshVersion.current) return;
+                    setGlobalItems(globals.items); setItems(library.items);
+                } catch (err) { if (version === refreshVersion.current) setError(String(err.message || err)); }
             }
             React.useEffect(() => {
                 refresh();
-                const onData = event => { if (tavernDataChangeAffects(event, ["regex-library"], "regex-library")) refresh(); };
+                const onData = event => { if (tavernDataChangeAffects(event, ["regex-library", "global-regex"], "regex-library")) refresh(); };
                 window.addEventListener("dsh-tavern-data-changed", onData);
-                return () => window.removeEventListener("dsh-tavern-data-changed", onData);
+                return () => { refreshVersion.current++; window.removeEventListener("dsh-tavern-data-changed", onData); };
             }, [sessionId]);
+            async function updateGlobal(item, patch) {
+                refreshVersion.current++;
+                setBusy(true); setError(""); setNotice("");
+                try {
+                    const result = await rpc("updateGlobalRegex", Object.assign({ index: item.index, expected: item.script }, patch), sessionId);
+                    refreshVersion.current++;
+                    setGlobalItems(result.items);
+                    notifyTavernDataChanged(["global-regex", "sessions"], "regex-library");
+                } catch (err) { await refresh(); setError(String(err.message || err)); }
+                finally { setBusy(false); }
+            }
             async function importFiles(files) {
                 if (!files.length) return;
                 setBusy(true); setError(""); setNotice("");
@@ -41,14 +58,41 @@
             function code(label, value) {
                 return [h("div", { key: label, className: "dsh-tavern-regex-label" }, label), h("pre", { key: label + "-code", className: "dsh-tavern-regex-code" }, value || "（空）")];
             }
+            function targetOf(script) {
+                return script.markdownOnly === true && script.promptOnly !== true ? "display" : script.promptOnly === true && script.markdownOnly !== true ? "prompt" : "both";
+            }
+            const targets = { both: "显示与上下文", display: "仅显示", prompt: "仅上下文" };
+            function scope(script) {
+                const names = { 1: "用户输入", 2: "模型输出", 3: "快捷命令", 5: "世界书", 6: "推理内容" };
+                const placements = (Array.isArray(script.placement) ? script.placement : []).map(value => names[Number(value)] || "位置 " + value).join("、") || "未设置作用位置";
+                return placements + " · " + targets[targetOf(script)];
+            }
             return h("div", { className: "dsh-tavern-user-profile" },
                 h("div", { className: "dsh-tavern-status-head" }, h("div", { className: "dsh-tavern-status-title" }, "正则库"),
-                    h("button", { className: "dsh-tavern-btn primary", disabled: busy, onClick: () => importInput.current && importInput.current.click() }, "导入正则"),
-                    h("input", { ref: importInput, type: "file", multiple: true, accept: ".json,application/json", style: { display: "none" }, onChange: event => { const files = Array.from(event.target.files || []); event.target.value = ""; importFiles(files); } })),
+                    h("button", { className: "dsh-tavern-btn", disabled: busy, onClick: refresh }, "刷新")),
                 h("div", { className: "dsh-tavern-user-profile-body" },
-                    h("p", { className: "dsh-tavern-settings-desc" }, "存放从原版酒馆导出的正则（JSON）。正则库里的正则不会生效；需要时告诉卡片 Agent，例如“把正则库里的某某正则写进这张人物卡”或“写进某某预设”。"),
                     error ? h("p", { role: "alert" }, error) : null,
                     notice ? h("p", { role: "status" }, notice) : null,
+                    h("h2", { className: "dsh-tavern-status-label" }, "全局正则"),
+                    h("p", { className: "dsh-tavern-settings-desc" }, "对所有对话生效，不随预设切换。开关和作用范围自动保存；上下文规则也用于压缩输入及保留的近期原文。预设和角色卡自带的正则仍会独立执行。"),
+                    globalItems === null ? h("p", null, "正在读取全局正则…") : !globalItems.length ? h("p", { className: "dsh-tavern-status-empty" }, "暂无全局正则。") : globalItems.map(item =>
+                        h("section", { key: item.index, className: "dsh-tavern-guide-library" },
+                            h("div", { className: "dsh-tavern-guide-heading" }, h("h3", { style: { flex: 1 } }, item.name),
+                                h("span", { className: "dsh-tavern-regex-meta" }, item.enabled ? "已启用" : "已停用"),
+                                h("label", { className: "dsh-tavern-settings-switch", style: { flexShrink: 0 } },
+                                    h("input", { type: "checkbox", role: "switch", "aria-label": item.name, checked: item.enabled, disabled: busy, onChange: () => updateGlobal(item, { enabled: !item.enabled }) }),
+                                    h("span", { className: "dsh-tavern-settings-track" }))),
+                            h("p", { className: "dsh-tavern-settings-desc" }, scope(item.script)),
+                            h("label", { className: "dsh-tavern-settings-desc" }, "作用范围",
+                                h("select", { className: "dsh-tavern-settings-select", style: { width: "100%", marginTop: 6 }, "aria-label": item.name + "的作用范围", value: targetOf(item.script), disabled: busy, onChange: event => updateGlobal(item, { target: event.target.value }) },
+                                    Object.keys(targets).map(value => h("option", { key: value, value: value }, targets[value])))),
+                            h("details", null, h("summary", null, "查看正则"),
+                                code("查找正则", item.script.findRegex), code("替换内容", item.script.replaceString),
+                                h("div", { className: "dsh-tavern-regex-meta" }, "深度范围：" + (item.script.minDepth ?? "不限") + " ～ " + (item.script.maxDepth ?? "不限"))))),
+                    h("div", { className: "dsh-tavern-guide-heading" }, h("h2", { className: "dsh-tavern-status-label" }, "正则素材库"),
+                        h("button", { className: "dsh-tavern-btn primary", disabled: busy, onClick: () => importInput.current && importInput.current.click() }, "导入正则"),
+                        h("input", { ref: importInput, type: "file", multiple: true, accept: ".json,application/json", style: { display: "none" }, onChange: event => { const files = Array.from(event.target.files || []); event.target.value = ""; importFiles(files); } })),
+                    h("p", { className: "dsh-tavern-settings-desc" }, "导入仅作为素材保存，不会自动启用。需要时告诉卡片 Agent，例如“把正则库里的某某正则写进这张人物卡”或“写进某某预设”。"),
                     items === null ? h("p", null, "正在读取正则库…") : !items.length ? h("p", { className: "dsh-tavern-status-empty" }, "暂无正则。点击“导入正则”选择酒馆正则 JSON 文件，可多选。") : items.map(item =>
                         h("section", { key: item.id, className: "dsh-tavern-guide-library" },
                             h("div", { className: "dsh-tavern-guide-heading" }, h("h3", null, item.name)),

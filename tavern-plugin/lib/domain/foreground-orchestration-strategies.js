@@ -325,7 +325,8 @@ export function createNativePlayOrchestrationStrategy(options) {
         // Resolved here because the request projection below is synchronous.
         historyToolCall: submitOffered,
         storyOutputToolCall: outputWanted && submitVisible,
-        historyLayout: typeof options.historyLayout === 'function' ? String(await options.historyLayout() || 'story') : 'story'
+        historyLayout: typeof options.historyLayout === 'function' ? String(await options.historyLayout() || 'story') : 'story',
+        historyTextProjector: submitOffered && typeof options.historyTextProjector === 'function' ? await options.historyTextProjector(sessionId) : undefined
       })
     }
     if (Number(payload.step) === 1) {
@@ -369,8 +370,9 @@ export function createNativePlayOrchestrationStrategy(options) {
     const regeneratedMessages = projectRegenerationRequestMessages(visibleMessages.length === optionsValue.messages?.length ? optionsValue.messages : visibleMessages)
     // Filter before preset role merging loses the snapshots' separate source metadata.
     // This is request-only: the Session retains every historical worldbook snapshot.
-    const nativeMessages = regeneratedMessages.filter(message => !isNativeStablePrefix(message) &&
+    const filteredMessages = regeneratedMessages.filter(message => !isNativeStablePrefix(message) &&
       !(staged.scope === 'foreground' && isHistoricalWorldbook(message, staged.turn)))
+    const nativeMessages = filteredMessages.length === regeneratedMessages.length ? regeneratedMessages : filteredMessages
     const baseRequest = nativeMessages === optionsValue.messages
       ? optionsValue : Object.assign({}, optionsValue, { messages: nativeMessages })
     // The front phase is already in the native system prompt (see presetFrontSections).
@@ -403,7 +405,8 @@ export function createNativePlayOrchestrationStrategy(options) {
         toolName: STORY_SUBMIT_TOOL_NAME,
         layout: staged.historyLayout,
         // `everything` deliberately replays the input too, leaving a receipt last.
-        preserve: staged.historyLayout === 'everything' ? null : (_message, index) => index === inputIndex
+        preserve: staged.historyLayout === 'everything' ? null : (_message, index) => index === inputIndex,
+        projectText: staged.historyTextProjector
       })
       if (historyMessages !== request.messages) request = Object.assign({}, request, { messages: historyMessages })
     }

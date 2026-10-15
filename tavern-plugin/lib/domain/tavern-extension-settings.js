@@ -8,6 +8,14 @@ function settingsObject(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function regexItems(settings) {
+  return (Array.isArray(settings.regex) ? settings.regex : []).flatMap((script, index) =>
+    script && typeof script === 'object' && !Array.isArray(script) ? [{
+      index, name: String(script.scriptName || script.name || script.id || '正则 ' + (index + 1)),
+      enabled: script.disabled !== true && script.enabled !== false, script
+    }] : [])
+}
+
 /** Profile-owned plugin namespaces, separate from DSH settings and chat history. */
 export function createTavernExtensionSettings(profileData) {
   const project = settingsObject
@@ -39,5 +47,30 @@ export function createTavernExtensionSettings(profileData) {
     return project(saved ?? {})
   }
 
-  return Object.freeze({ read, save })
+  async function listRegex() { return regexItems(await read()) }
+
+  async function updateRegex({ index, enabled, target, expected } = {}) {
+    if (!Number.isInteger(index) || index < 0 || (enabled === undefined && target === undefined)
+      || (enabled !== undefined && typeof enabled !== 'boolean')
+      || (target !== undefined && !['display', 'prompt', 'both'].includes(target))) throw new Error('正则设置参数不合法')
+    const saved = await profileData.updateJson(settingsPath, current => {
+      const settings = writable(current ?? {})
+      const script = Array.isArray(settings.regex) ? settings.regex[index] : undefined
+      if (!script || typeof script !== 'object' || Array.isArray(script) || !isDeepStrictEqual(script, expected)) {
+        throw new Error('全局正则已被其他窗口修改，请刷新后重试')
+      }
+      if (enabled !== undefined) {
+        script.disabled = !enabled
+        if (own(script, 'enabled')) script.enabled = enabled
+      }
+      if (target !== undefined) {
+        script.markdownOnly = target !== 'prompt'
+        script.promptOnly = target !== 'display'
+      }
+      return isDeepStrictEqual(settings, current) ? undefined : settings
+    })
+    return regexItems(saved ?? {})
+  }
+
+  return Object.freeze({ read, save, listRegex, updateRegex })
 }

@@ -39,6 +39,30 @@ export const RETAINED_ROUNDS_WINDOW_SHARE = 0.25
 const TRANSCRIPT_HEADER = /^【最近 \d+ 轮原文（未压缩，按时间顺序）】\n\n/
 const transcriptHeader = count => `【最近 ${count} 轮原文（未压缩，按时间顺序）】\n\n`
 
+/** Apply prompt rules to assistant text without changing saved history or other blocks. */
+export function projectStoryRequestHistory(request, projectAssistantText) {
+  if (!Array.isArray(request?.messages) || !projectAssistantText) return request
+  const messages = request.messages.map(message => {
+    if (message?.role !== 'assistant' || !Array.isArray(message.content)) return message
+    const content = message.content.map(block => {
+      if (block?.type !== 'text') return block
+      const text = projectAssistantText(block.text)
+      return text === block.text ? block : { ...block, text }
+    })
+    return content.every((block, index) => block === message.content[index]) ? message : { ...message, content }
+  }).filter(message => message?.role !== 'assistant' || !Array.isArray(message.content) ||
+    message.content.some(block => block?.type !== 'text' || block.text.trim() !== ''))
+  return messages.length === request.messages.length && messages.every((message, index) => message === request.messages[index]) ? request : { ...request, messages }
+}
+
+function projectTranscriptRound(text, projectAssistantText) {
+  const marker = '\n\n[正文]\n'
+  const boundary = text.indexOf(marker)
+  if (boundary < 0 || !projectAssistantText) return text
+  const start = boundary + marker.length
+  return text.slice(0, start) + projectAssistantText(text.slice(start))
+}
+
 const textOf = message => (Array.isArray(message?.content) ? message.content : [])
   .filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n').trim()
 const isPlayerMessage = message => message?.role === 'user' && !isPluginSource(message.source) && textOf(message) !== ''
@@ -73,21 +97,22 @@ export function nativelyRetainedRounds(session, request) {
   return surfaceMessages(session).filter(message => message?.role === 'user' && !inRequest.has(message.id) && isPlayerMessage(message)).length
 }
 
-const lineOf = unit => {
-  if (unit.text !== undefined) return unit.text
+const lineOf = (unit, projectAssistantText) => {
+  if (unit.text !== undefined) return projectTranscriptRound(unit.text, projectAssistantText)
   if (unit.message?.role === 'system') return ''
   const text = textOf(unit.message)
-  return text === '' ? '' : (unit.message.role === 'user' ? '[玩家]\n' : '[正文]\n') + text
+  return text === '' ? '' : unit.message.role === 'user' ? '[玩家]\n' + text
+    : '[正文]\n' + (projectAssistantText ? projectAssistantText(text) : text)
 }
 
 /** How many of the newest rounds fit both the round quota and the token budget. */
-function retentionPlan(history, rounds, { budget = Infinity, estimate = text => Math.ceil(text.length / 4) } = {}) {
-  const units = history.flatMap((message, source) => storyUnits(message).map(unit => ({ ...unit, source })))
+function retentionPlan(history, rounds, { budget = Infinity, estimate = text => Math.ceil(text.length / 4), projectAssistantText } = {}) {
+  const units = history.flatMap((message, source) => storyUnits(message).map(unit => ({ ...unit, source, line: lineOf(unit, projectAssistantText) })))
   const starts = units.flatMap((unit, index) => unit.player ? [index] : [])
   let fit = 0, used = 0
   while (fit < Math.min(rounds, starts.length)) {
     const start = starts[starts.length - 1 - fit], end = fit === 0 ? units.length : starts[starts.length - fit]
-    used += estimate(units.slice(start, end).map(lineOf).filter(Boolean).join('\n\n'))
+    used += estimate(units.slice(start, end).map(unit => unit.line).filter(Boolean).join('\n\n'))
     if (used > budget) break
     fit++
   }
@@ -120,7 +145,7 @@ export function retainRecentStoryRounds(request, rounds = RETAINED_STORY_ROUNDS,
   // (prompt cache). A previous summary is kept whole even when some of its carried
   // rounds are kept again; that small overlap is cheaper than a cache miss.
   const boundary = cut.text !== undefined ? cut.source + 1 : cut.source
-  const transcript = units.slice(starts[starts.length - keep]).map(lineOf).filter(Boolean)
+  const transcript = units.slice(starts[starts.length - keep]).map(unit => unit.line).filter(Boolean)
   return {
     request: { ...request, messages: [...history.slice(0, boundary), ...history.slice(boundary).filter(message => message?.role === 'system'), request.messages.at(-1)] },
     appendix: transcriptHeader(keep) + transcript.join('\n\n'),

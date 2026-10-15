@@ -184,7 +184,15 @@ export function createReplyHistoryProjector({ maxCacheBytes = 16 * 1024 * 1024, 
         latestSourceBacked = hasSource
         continue
       }
-      const projected = ordinaryDisplay
+      // Old ordinary captures applied character/global rules but omitted the
+      // preset. Repair only a byte-for-byte reproduction of that incomplete
+      // path; never rerun EJS or apply replacements twice to captured markup.
+      let repairFormatting = false
+      if (ordinaryDisplay && templateDisplay.formattingVersion === undefined && Array.isArray(options.legacyFormattingRegexScripts)) {
+        const legacy = applyTavernRegexText(sourceText, options.legacyFormattingRegexScripts, targetOptions(options, true))
+        repairFormatting = resolveDisplayIdentityMacros(legacy.text, options) === templateDisplay.formattingText
+      }
+      const projected = ordinaryDisplay && !repairFormatting
         ? projectCached(sourceText, templateDisplay.formattingText, { ...options, regexScripts: [] }, signatureOf({ ...options, regexScripts: [] }))
         : projectCached(sourceText, projectionText, options, signature)
       const sessionText = str(message.text)
@@ -196,7 +204,7 @@ export function createReplyHistoryProjector({ maxCacheBytes = 16 * 1024 * 1024, 
           turn,
           text: projected.displayText,
           mode: projected.displayMode,
-          parts: ordinaryDisplay ? annotateTemplateStatusParts(projected.displayParts, templateDisplay.html) : structuredClone(projected.displayParts),
+          parts: ordinaryDisplay && !repairFormatting ? annotateTemplateStatusParts(projected.displayParts, templateDisplay.html) : structuredClone(projected.displayParts),
           warnings: [...projected.warnings]
         })
       }

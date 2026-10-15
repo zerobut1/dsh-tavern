@@ -9,8 +9,17 @@ export function createResourceHandlers(deps) {
     importPreset, importScript, importSettingsBundle, importSource, listTavernResources, presetLibrary,
     previewPreset, readScript, readTavernSettings, regexLibrary, renameResource, runtimePresets,
     scriptContinuity, scriptNavigation, sessionActivity, skillImportFiles, str, tavernSkills, updateChat,
-    updateTavernSettings, worldBooks } = deps
+    updateTavernSettings, worldBooks, tavernExtensionSettings, profileData, readSessionMap, sessionSignals } = deps
   return {
+    async listGlobalRegex() {
+      return { items: await tavernExtensionSettings.listRegex() }
+    },
+    async updateGlobalRegex(args) {
+      const items = await tavernExtensionSettings.updateRegex(args)
+      const [map, version] = await Promise.all([readSessionMap(), profileData.version('tavern-extension-settings.json')])
+      for (const sessionId of Object.keys(map)) sessionSignals.publish(sessionId, { kind: 'tavern-state', version: 'extension-settings:' + version })
+      return { items }
+    },
     async getResourceWorkspace(args) {
       return { path: dataRoot + '/resources' }
     },

@@ -68,6 +68,7 @@ export function createSessionViewProjection({
       replyDisplay = await requestPerformance.stage('historyProjection', () => incrementalReplyView.project(persistedProjection ? chat : { ...chat, _storageRevision: undefined }, {
         charName: chat.cardName, macroState: chat.macroState,
         regexScripts: composeTavernRegexScripts(cardExtensions, presetRegexScripts),
+        legacyFormattingRegexScripts: presetRegexScripts.length ? (cardExtensions.characterRegexScripts || []).concat(cardExtensions.globalRegexScripts || []) : undefined,
         placement: 2, isMarkdown: true, isEdit: false, depth: 0
       }, { charName: chat.cardName, macroState: chat.macroState, regexScripts: cardExtensions.regexScripts }, {shared:true}))
       replyDisplay = await liveCardUpdate.project(chat, card, replyDisplay, {charName:chat.cardName,macroState:chat.macroState,regexScripts:cardExtensions.regexScripts})
@@ -430,6 +431,7 @@ export function createSessionViewProjection({
       let replyDisplay = await requestPerformance.stage('historyProjection', () => incrementalReplyView.project(chat, {
         charName: chat.cardName, macroState: chat.macroState,
         regexScripts: composeTavernRegexScripts(cardExtensions, presetRegexScripts),
+        legacyFormattingRegexScripts: presetRegexScripts.length ? (cardExtensions.characterRegexScripts || []).concat(cardExtensions.globalRegexScripts || []) : undefined,
         placement: 2, isMarkdown: true, isEdit: false, depth: 0
       }, { charName: chat.cardName, macroState: chat.macroState, regexScripts: cardExtensions.regexScripts }, {shared:true}))
       const renderChat = {...chat,messages:createScopedMessages(chat.messages.length,[],index=>{const message=chat.messages[index];return message.variables ? message : {...message,variables:helperCore.messages[index]?.swipes_data || []}})}
