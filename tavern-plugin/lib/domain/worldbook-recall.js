@@ -3,6 +3,7 @@ import { worldbookPlacement } from './worldbook-placement.js'
 import { entryRandom, renderWorldbookRandom } from './worldbook-random.js'
 import { projectAgentContent } from './runtime-content-projection.js'
 import { lastTavernHelperVariables } from './tavern-helper-context.js'
+import { renderTavernHelperVariableMacros } from './tavern-helper-variable-macros.js'
 import { activateWorldBook, promptOrder, worldBookSettings } from './worldbook-activation.js'
 
 const READ_COOLDOWN_TURNS = 10
@@ -224,7 +225,13 @@ export async function projectWorldBookTemplates(input = {}) {
     activationRequests.push(...(result.activationRequests || []).map(request => ({ ...request, sourceRef: entry.ref })))
     if (!useBatch) scopes = clone(result.scopes)
     const projected = input.includeConstants === true
-      ? projectAgentContent(renderWorldbookRandom(result.text, random), { charName: str(input.card?.name), macroState }) : null
+      ? projectAgentContent(renderWorldbookRandom(renderTavernHelperVariableMacros(result.text, {
+          message: scopes.message,
+          chat: scopes.local,
+          character: input.card?.extensions?.tavern_helper?.variables,
+          preset: input.chat?.runtimePresetSnapshot?.variables,
+          global: scopes.global
+        }).text, random), { charName: str(input.card?.name), macroState }) : null
     if (projected) macroState = projected.macroState
     const text = str(input.randomOutputs?.[entry.ref] ?? (projected ? projected.agentText : result.text)).trim()
     if (text === '') continue
