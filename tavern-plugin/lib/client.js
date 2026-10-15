@@ -5006,6 +5006,20 @@ function tavernModelRefusalNotice(text) {
 		    await window.SillyTavern.saveChat();
 		    return window.SillyTavern.reloadCurrentChat();
 		  };
+		  const originalSetChatMessages = window.setChatMessages;
+		  window.setChatMessages = function (patches) {
+		    if (Array.isArray(patches) && patches.every(patch => patch && patch.swipe_id === undefined)) {
+		      return originalSetChatMessages(patches);
+		    }
+		    const patch = Array.isArray(patches) && patches.length === 1 && patches[0];
+		    const index = Number(patch && patch.swipe_id);
+		    if (!patch || Number(patch.message_id) !== 0 || !Number.isInteger(index) || !descriptor.openingIds[index] ||
+		        Object.keys(patch).some(key => !['message_id', 'swipe_id', 'message'].includes(key)) ||
+		        (patch.message !== undefined && patch.message !== swipes[index])) {
+		      return Promise.reject(new Error('只能选择人物卡已有开场'));
+		    }
+		    return window.setChatMessage(swipes[index], 0, { swipe_id: index });
+		  };
 
 		}
 
@@ -5971,6 +5985,8 @@ function tavernModelRefusalNotice(text) {
 			var viewport = 600;
 			try { viewport = window.parent.innerHeight || viewport; } catch (_) {}
 			viewport = Math.max(160, Math.min(1200, viewport));
+			if (document.documentElement.hasAttribute('data-dsh-tavern-viewport-page')) return viewport;
+			var rootViewport = false, contentViewport = false;
 			function viewportHeight(style) {
 				return /(?:^|[^\d.])100(?:d|s|l)?vh\b/i.test((style.height || '') + ' ' + (style.minHeight || ''));
 			}
@@ -5991,25 +6007,36 @@ function tavernModelRefusalNotice(text) {
 			function matchesRules(rules) {
 				for (var rule of Array.from(rules || [])) {
 					if (rule.media && !matchMedia(rule.media.mediaText).matches) continue;
-					if (rule.selectorText && rule.style && viewportHeight(rule.style)) {
-						try { if (Array.from(document.querySelectorAll(rule.selectorText)).some(visible)) return true; } catch (_) {}
+					// Full-page wizards often size only html/body, then center absolute
+					// screens inside body. The content-height adapter otherwise collapses
+					// that containing block and places the screen above the iframe.
+					if (rule.selectorText && rule.style && (viewportHeight(rule.style) || /^100%$/.test(rule.style.height))) {
+						try {
+							var nodes = Array.from(document.querySelectorAll(rule.selectorText));
+							if (nodes.some(node => node === document.body || node === document.documentElement)) rootViewport = true;
+							if (viewportHeight(rule.style) && nodes.some(visible)) contentViewport = true;
+						} catch (_) {}
 					}
-					if (rule.cssRules && matchesRules(rule.cssRules)) return true;
+					if (rule.cssRules) matchesRules(rule.cssRules);
 				}
-				return false;
 			}
 			for (var sheet of Array.from(document.styleSheets)) {
-				try { if (!sheet.disabled && (!sheet.media.mediaText || matchMedia(sheet.media.mediaText).matches) && matchesRules(sheet.cssRules)) return viewport; } catch (_) {}
+				try { if (!sheet.disabled && (!sheet.media.mediaText || matchMedia(sheet.media.mediaText).matches)) matchesRules(sheet.cssRules); } catch (_) {}
 			}
+			var collapsedRoot = document.body.getBoundingClientRect().height < 1 && (rootViewport || viewportHeight(document.body.style) || document.body.style.height === '100%');
 			for (var node of document.body.querySelectorAll('*')) {
 				// Check the cheap conditions first; visible() measures layout.
 				var style = getComputedStyle(node);
+				if (collapsedRoot && /^(absolute|fixed)$/.test(style.position) && visible(node)) {
+					document.documentElement.setAttribute('data-dsh-tavern-viewport-page', '');
+					return viewport;
+				}
 				// Full-page fixed shells have no normal-flow height at all. Floating
 				// buttons or small dialogs must not enlarge the frame.
 				if (!viewportHeight(node.style) && !(style.position === 'fixed' && style.top === '0px' && style.bottom === '0px')) continue;
-				if (visible(node)) return viewport;
+				if (visible(node)) contentViewport = true;
 			}
-			return 0;
+			return contentViewport ? viewport : 0;
 		}
         function normalizeFrameSizing(value) {
           if (!value || !['content', 'viewport', 'fixed'].includes(value.mode)) return null
@@ -6454,6 +6481,7 @@ function tavernModelRefusalNotice(text) {
 			// Card module scripts wait for the helper globals (z, YAML) as the script sandbox does;
 			// otherwise a module using them at top level races the async import.
 			const frameHtml = helperShim || preparationRuntime ? String(html).replace(/<script\b[^>]*\btype\s*=\s*["']?module["']?[^>]*>/gi, tag => /\bsrc\s*=/i.test(tag) ? tag : tag + 'await window.__dshTavernHelperReady;') : html;
+			const viewportPageStyle = '<style data-dsh-tavern-viewport-page>html:root[data-dsh-tavern-viewport-page],html:root[data-dsh-tavern-viewport-page] body{height:100%!important;min-height:0!important}</style>';
 			const cleanRuntimeReporter = runtimeReporter.replace('addEventListener("load",schedule);schedule();', 'addEventListener("load",schedule);addEventListener("resize",schedule);schedule();').replace("capturedAt:Date.now(),", "capturedAt:Date.now(),layout:window.__dshTavernFrameLayout?window.__dshTavernFrameLayout():null,").replace('dom=copy.innerHTML;', 'Array.from(copy.querySelectorAll("script[data-dsh-tavern-text-colors],script[data-dsh-tavern-touch]")).forEach(function(node){node.remove();});dom=copy.innerHTML;');
 			return '<!doctype html><html><head><meta charset="utf-8">'
                 + '<script data-dsh-tavern-crypto>(' + installTavernCryptoSubtlePolyfill.toString() + ')(window);<\/script>'
@@ -6473,7 +6501,7 @@ function tavernModelRefusalNotice(text) {
 				// Viewers without the execution lease still receive live variables. Legacy
 				// status panels read parent.Mvu; expose their Helper API below the executor.
 				+ (!preparationRuntime && input && input.helperContext && input.persistent === true && input.trustedCardMode === true ? '<script data-dsh-tavern-status-host>(function(){const release=(' + installTavernTrustedHostFacade.toString() + ')(window.parent,window,-0.5,["Mvu"]);window.addEventListener("pagehide",release,{once:true});window.addEventListener("unload",release,{once:true});})();<\/script>' : '')
-				+ '</head><body class="no-blur">' + (input && input.helperContext ? '<script data-dsh-tavern-legacy-composer>const createTavernFrameLifecycle=' + createTavernFrameLifecycle.toString() + ';(' + installLegacyTavernComposer.toString() + ')();<\/script>' : '') + (preparationRuntime ? preparationRuntime.body : '') + frameHtml + sizingRuntime + layoutNormalizer + (input && input.persistent ? "" : textColorRuntime) + reporter + '<script data-dsh-tavern-touch>(' + installTavernFrameTouch.toString() + ')(' + token + ',' + scrollTavernTouchChain.toString() + ');<\/script>' + readyReporter + '</body></html>';
+				+ viewportPageStyle + '</head><body class="no-blur">' + (input && input.helperContext ? '<script data-dsh-tavern-legacy-composer>const createTavernFrameLifecycle=' + createTavernFrameLifecycle.toString() + ';(' + installLegacyTavernComposer.toString() + ')();<\/script>' : '') + (preparationRuntime ? preparationRuntime.body : '') + frameHtml + sizingRuntime + layoutNormalizer + (input && input.persistent ? "" : textColorRuntime) + reporter + '<script data-dsh-tavern-touch>(' + installTavernFrameTouch.toString() + ')(' + token + ',' + scrollTavernTouchChain.toString() + ');<\/script>' + readyReporter + '</body></html>';
 		}
 
         function startTavernHelperLoader(source) {

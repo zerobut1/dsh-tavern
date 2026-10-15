@@ -130,6 +130,12 @@ function splitPlainSegment(value, editing = false) {
     if (narrative.rest.trim()) parts.push(...splitPlainSegment(narrative.rest))
     return parts.filter(part => (part.text ?? part.content).trim())
   }
+  // Imported greetings can indent the entire document with tabs or four spaces.
+  // Recognize a standalone document before Markdown masks it as a code example;
+  // keep snippets and explicitly fenced examples on the ordinary Markdown path.
+  if (/^\s*(?:<!doctype\s+html\s*>\s*)?<html(?:\s[^<>]*?)?>[\s\S]*<\/html>\s*$/i.test(source)) {
+    return [{ kind: 'html', content: source }]
+  }
   if (!hasRawHtml(source)) return [{ kind: 'text', text: source }]
   try {
     // Protect Markdown code blocks before scanning; retain exact source offsets.

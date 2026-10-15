@@ -211,6 +211,20 @@ function installSessionOpeningBridge(token, descriptor) {
     await window.SillyTavern.saveChat();
     return window.SillyTavern.reloadCurrentChat();
   };
+  const originalSetChatMessages = window.setChatMessages;
+  window.setChatMessages = function (patches) {
+    if (Array.isArray(patches) && patches.every(patch => patch && patch.swipe_id === undefined)) {
+      return originalSetChatMessages(patches);
+    }
+    const patch = Array.isArray(patches) && patches.length === 1 && patches[0];
+    const index = Number(patch && patch.swipe_id);
+    if (!patch || Number(patch.message_id) !== 0 || !Number.isInteger(index) || !descriptor.openingIds[index] ||
+        Object.keys(patch).some(key => !['message_id', 'swipe_id', 'message'].includes(key)) ||
+        (patch.message !== undefined && patch.message !== swipes[index])) {
+      return Promise.reject(new Error('只能选择人物卡已有开场'));
+    }
+    return window.setChatMessage(swipes[index], 0, { swipe_id: index });
+  };
 
 }
 
