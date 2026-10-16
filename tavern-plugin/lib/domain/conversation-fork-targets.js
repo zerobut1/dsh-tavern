@@ -20,19 +20,24 @@ export function forkTurnsByMessageId(session, regeneratedDshTurns = {}) {
   }
   const regeneratedStories = new Set(storyByNative.values())
   const replies = new Map()
+  const projectedTurns = new Set()
   const completed = new Set()
   for (const event of sessionEvents(session)) {
     const turn = storyEventTurn(event)
     if (!Number.isSafeInteger(turn) || turn < 1) continue
-    if (event.type === 'turn/start') { replies.delete(turn); completed.delete(turn) }
-    else if (event.type === 'assistant/message' && event.data?.message?.source?.kind === 'model' && event.data.message.id) replies.set(turn, [...(replies.get(turn) || []), String(event.data.message.id)])
+    if (event.type === 'turn/start') { replies.delete(turn); projectedTurns.delete(turn); completed.delete(turn) }
+    else if (event.type === 'assistant/message' && event.data?.message?.source?.kind === 'model' && event.data.message.id) {
+      const message = event.data.message
+      replies.set(turn, [...(replies.get(turn) || []), String(message.id)])
+      if (event.surfaceOp?.op === 'replace' && message.source.provider === 'dsh-tavern' && message.source.model === 'reply-projection') projectedTurns.add(turn)
+    }
     else if (event.type === 'turn/end' && event.data?.reason?.kind === 'completed') completed.add(turn)
   }
   const result = {}
   for (const [native, messageIds] of replies) {
     if (!completed.has(native)) continue
-    // The original reply of a regenerated round is no longer the visible one.
-    if (!storyByNative.has(native) && regeneratedStories.has(native)) continue
+    // A regenerated reply can keep the original append's action row.
+    if (!storyByNative.has(native) && regeneratedStories.has(native) && !projectedTurns.has(native)) continue
     for (const messageId of messageIds) result[messageId] = storyByNative.get(native) ?? native
   }
   const latest = Math.max(0, ...Object.values(result))

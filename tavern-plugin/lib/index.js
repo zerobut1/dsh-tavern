@@ -2026,9 +2026,14 @@ export async function apply(ctx) {
     if (expectedRevision !== source._storageRevision || expectedAtSeq !== atSeq) throw new Error('源对话已变化，请重新选择分叉回合')
     const targetId = str(targetSessionId)
     if (targetId === '' || await chatForSession(targetId) !== undefined) throw new Error('分叉目标必须是尚未绑定对话的新 Session')
-    const target = sessionStore.get(targetId) || agentRegistry.get(targetId)?.session
+    const targetAgent = agentRegistry.get(targetId)
+    const target = sessionStore.get(targetId) || targetAgent?.session
     const targetEnd = sessionEvents(target).findLast(event => event.type === 'turn/end')
     if (!targetEnd || targetEnd.seq !== atSeq) throw new Error('原生分叉没有停在指定回合，已拒绝绑定游戏状态')
+    if (!targetAgent || targetAgent.phase?.kind !== 'idle') throw new Error('分叉目标尚未空闲，已拒绝绑定游戏状态')
+    // Native forks include events after turn/end, including the next input's enqueue.
+    // Keep the inherited history, but start this branch with no pending source work.
+    targetAgent.inbox.clear()
     const lastNativeTurn = Number(sessionEvents(target).findLast(event => event.type === 'turn/start')?.data?.turn) || 0
     const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn })
     fork.forkedFrom = { ...fork.forkedFrom, chatId: source.id, sessionId: source.sessionId, storageRevision: source._storageRevision,
