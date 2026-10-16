@@ -234,7 +234,7 @@ export function foregroundFrameInputs(plan, sourceText, projectedText, presetSna
   if (usesOfficialMvu(chat)) {
     inputs.push({
       kind: 'foreground.writing-rules',
-      text: '变量更新由正文提交后的后台 Agent 独立结算。只输出剧情正文，不要输出 <UpdateVariable>、JSON Patch 或变量更新说明。',
+      text: '变量更新由正文提交后的后台 Agent 独立结算，前台只读查询。不要输出 <UpdateVariable>、JSON Patch 或变量更新说明。',
       required: true,
       source: { stage: 'mvu-background-owner' }
     })
