@@ -5,6 +5,7 @@ import { installCompactionRequestProjection } from '../domain/compaction-request
 import { installWorkspaceInstructionPresentation } from '../domain/workspace-instruction-presentation.js'
 import { presentModelError } from '../domain/model-error-presentation.js'
 import { markRequestHandled, requestHandledBy } from '../domain/request-lineage.js'
+import { currentWorldbookTurn, isHistoricalWorldbook } from '../domain/worldbook-snapshot.js'
 
 export function registerModelStreamHooks({
   agentRegistry,
@@ -60,10 +61,12 @@ export function registerModelStreamHooks({
     // Seam to the plugin layer: plugins may add what the summary must keep.
     const notes = pluginCompactionNotes ? await pluginCompactionNotes({ gameId: str(request.sessionId) }).catch(() => []) : []
     const session = sessionStore.get(request.sessionId) || agentRegistry.get(request.sessionId)?.session
-    const retention = await storyRetention(request)
-    const natively = nativelyRetainedRounds(session, request)
+    const worldbookTurn = currentWorldbookTurn(session)
+    const currentRequest = { ...request, messages: request.messages.filter(message => !isHistoricalWorldbook(message, worldbookTurn)) }
+    const retention = await storyRetention(currentRequest)
+    const natively = nativelyRetainedRounds(session, currentRequest)
     // Which story turns this compaction folds: everything but the rounds kept verbatim.
-    const kept = retainRecentStoryRounds(request, retention.rounds - natively, retention).kept || 0
+    const kept = retainRecentStoryRounds(currentRequest, retention.rounds - natively, retention).kept || 0
     // The turn the summary folds through is a few rounds from the end: the latest floors
     // hold it; the whole history only where storage cannot read those alone.
     const back = kept + natively
@@ -71,9 +74,9 @@ export function registerModelStreamHooks({
     const recentTurns = (recent?.messages || []).filter(message => message?.role === 'assistant' && Number(message.turn) > 0).map(message => Number(message.turn))
     const turns = recent && (recent.messagesFrom === 0 || recentTurns.length > back) ? recentTurns
       : ((await chatForSession(str(request.sessionId)))?.messages || []).filter(message => message?.role === 'assistant' && Number(message.turn) > 0).map(message => Number(message.turn))
-    const volumes = storyVolumePlan(request, { through: turns[turns.length - 1 - kept - natively], budget: retention.volumeBudget, estimate: retention.estimate })
+    const volumes = storyVolumePlan(currentRequest, { through: turns[turns.length - 1 - kept - natively], budget: retention.volumeBudget, estimate: retention.estimate })
     const instruction = [runtimePrompt('story-compaction'), volumes.instruction, ...(notes.length ? ['【插件附加的摘要要求】', ...notes.map(note => note.text)] : [])].join('\n\n')
-    const story = createStoryCompactionRequest(request, instruction)
+    const story = createStoryCompactionRequest(currentRequest, instruction, worldbookTurn)
     let prefix = volumes.prefix
     if (volumes.merge) {
       // Only the oldest volumes are rewritten, in their own call; a failed merge keeps them all.

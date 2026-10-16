@@ -24,7 +24,7 @@ export function createForegroundFrameSessionAdapter(options = {}) {
       return { messages, receipt: { appended: false, reason: 'duplicate', frameId: frame.frameId } }
     }
     const snapshot = worldbookSnapshot(input.session, frame.contributions
-      .filter(item => item.slot === 'activeWorldbook').map(item => item.text).join('\n\n'), input.historyMessages || messages)
+      .filter(item => item.slot === 'activeWorldbook').map(item => item.text).join('\n\n'), input.historyMessages || messages, frame.turn)
     const contributions = frame.contributions.filter(item => item.slot !== 'activeWorldbook')
     const snapshots = snapshot ? [{
       id: makeId() + ':worldbook', role: 'user',

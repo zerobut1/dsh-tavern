@@ -8,6 +8,7 @@ import { projectHistoryAsToolCalls } from './history-tool-call.js'
 import { markRequestHandled, requestHandledBy } from './request-lineage.js'
 import { inputKind } from './session-turn-input.js'
 import { isProducerSource, isSystemPromptSource } from './message-source.js'
+import { isHistoricalWorldbook } from './worldbook-snapshot.js'
 
 const CARD_REFERENCE_SECTIONS = new Set(['tavern:character-card', 'tavern:card-system-prompt', 'tavern:constant-worldbook'])
 // The card Agent resends its system prompt on every tool step and reads live
@@ -366,7 +367,10 @@ export function createNativePlayOrchestrationStrategy(options) {
       return markRequestHandled(Object.assign({}, optionsValue, { messages }), PROJECTED)
     }
     const regeneratedMessages = projectRegenerationRequestMessages(visibleMessages.length === optionsValue.messages?.length ? optionsValue.messages : visibleMessages)
-    const nativeMessages = regeneratedMessages.some(isNativeStablePrefix) ? regeneratedMessages.filter(message => !isNativeStablePrefix(message)) : regeneratedMessages
+    // Filter before preset role merging loses the snapshots' separate source metadata.
+    // This is request-only: the Session retains every historical worldbook snapshot.
+    const nativeMessages = regeneratedMessages.filter(message => !isNativeStablePrefix(message) &&
+      !(staged.scope === 'foreground' && isHistoricalWorldbook(message, staged.turn)))
     const baseRequest = nativeMessages === optionsValue.messages
       ? optionsValue : Object.assign({}, optionsValue, { messages: nativeMessages })
     // The front phase is already in the native system prompt (see presetFrontSections).

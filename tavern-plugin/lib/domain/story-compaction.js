@@ -1,11 +1,12 @@
 import { sessionEvents } from './session-events.js'
 import { isPluginSource, isProducerSource } from './message-source.js'
+import { currentWorldbookTurn, isHistoricalWorldbook } from './worldbook-snapshot.js'
 
 export function usesStoryCompaction(chat) {
   return chat !== null && typeof chat === 'object' && (chat.mode === 'story' || chat.mode === 'script')
 }
 
-export function createStoryCompactionRequest(options, instruction) {
+export function createStoryCompactionRequest(options, instruction, turn) {
   if (options === null || typeof options !== 'object' || options.purpose !== 'compaction') return options
   if (!Array.isArray(options.messages) || options.messages.length === 0) return options
   if (typeof instruction !== 'string' || instruction.trim() === '') throw new TypeError('剧情压缩提示词不能为空')
@@ -19,8 +20,8 @@ export function createStoryCompactionRequest(options, instruction) {
   if (message === null || typeof message !== 'object' || message.role !== 'user' ||
     (source !== undefined && source !== null && !isProducerSource(source, 'dsh-compaction-basic'))) return options
 
-  const messages = options.messages.slice()
-  messages[lastIndex] = Object.freeze(Object.assign({}, message, {
+  const messages = options.messages.filter(message => !isHistoricalWorldbook(message, turn))
+  messages[messages.length - 1] = Object.freeze(Object.assign({}, message, {
     content: Object.freeze([Object.freeze({ type: 'text', text: instruction })])
   }))
   return Object.freeze(Object.assign({}, options, { messages: Object.freeze(messages) }))
@@ -55,10 +56,11 @@ function surfaceMessages(session) {
   const nodes = session?.surface?.nodes
   if (!nodes) return []
   const bySeq = typeof session.eventAt === 'function' ? null : new Map(sessionEvents(session).map(event => [event.seq, event]))
+  const turn = currentWorldbookTurn(session)
   return [...nodes].flatMap(seq => {
     const event = bySeq ? bySeq.get(seq) : session.eventAt(seq)
     return event?.type === 'user/message' ? [event.data] : event?.type === 'assistant/message' ? [event.data.message] : []
-  })
+  }).filter(message => !isHistoricalWorldbook(message, turn))
 }
 
 /**

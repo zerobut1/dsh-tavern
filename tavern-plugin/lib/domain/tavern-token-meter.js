@@ -1,4 +1,5 @@
 import { isTavernSurfaceEdit } from './session-surface-mutations.js'
+import { currentWorldbookTurn, isHistoricalWorldbook } from './worldbook-snapshot.js'
 const installations = new WeakMap()
 
 
@@ -19,6 +20,8 @@ export function installTavernTokenMeter(meter) {
     const compactSignature = original.length === 2
     const originalSync = meter._sync
     const hadOwnSync = Object.hasOwn(meter, '_sync')
+    const originalMeasure = meter.measure
+    const hadOwnMeasure = Object.hasOwn(meter, 'measure')
     if (compactSignature && typeof originalSync !== 'function') throw new Error('当前 DSH Token Meter 缺少同步入口')
     const presetCursors = new WeakMap()
     function presetBefore(session, state, seq) {
@@ -50,9 +53,32 @@ export function installTavernTokenMeter(meter) {
         : event
       return compactSignature ? original.call(this, state, accountingEvent) : original.call(this, session, state, accountingEvent)
     }
+    function measure(session, requestHeader) {
+      const measured = originalMeasure.call(this, session, requestHeader)
+      const turn = currentWorldbookTurn(session)
+      let changed = false
+      const nodes = measured.nodes.map(node => {
+        const event = session.eventAt ? session.eventAt(node.seq) : session.events?.[node.seq]
+        if (event?.type !== 'user/message' || !isHistoricalWorldbook(event.data, turn)) return node
+        changed = true
+        // Keep native positions and audit shadow prices; exclude only the request cost.
+        return Object.freeze({ ...node, tokens: 0 })
+      })
+      if (!changed) return measured
+      const surfaceTokens = nodes.reduce((sum, node) => sum + node.tokens, 0)
+      const header = requestHeader ?? session.requestHeader()
+      const toolsTokens = header?.tools?.length ? this.estimateMessage({ role: 'system',
+        content: [{ type: 'text', text: JSON.stringify(header.tools) }] }) : 0
+      const totalTokens = surfaceTokens + toolsTokens
+      // Usage anchors may describe a request that already omitted these snapshots.
+      // Reprice the projected surface instead of subtracting their cost twice.
+      return Object.freeze({ ...measured, nodes: Object.freeze(nodes), surfaceTokens, totalTokens,
+        baseline: Object.freeze({ kind: 'estimated', tokens: totalTokens }), surfaceDeltaTokens: 0 })
+    }
     meter._foldEvent = fold
     if (compactSignature) meter._sync = sync
-    entry = { original, fold, hadOwn, originalSync, hadOwnSync, compactSignature, users: 0 }
+    if (typeof originalMeasure === 'function') meter.measure = measure
+    entry = { original, fold, hadOwn, originalSync, hadOwnSync, originalMeasure, hadOwnMeasure, compactSignature, users: 0 }
     installations.set(meter, entry)
   }
   entry.users++
@@ -66,6 +92,10 @@ export function installTavernTokenMeter(meter) {
     if (entry.compactSignature) {
       if (entry.hadOwnSync) meter._sync = entry.originalSync
       else delete meter._sync
+    }
+    if (typeof entry.originalMeasure === 'function') {
+      if (entry.hadOwnMeasure) meter.measure = entry.originalMeasure
+      else delete meter.measure
     }
     installations.delete(meter)
   }
