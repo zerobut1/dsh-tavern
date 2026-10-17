@@ -51,7 +51,9 @@ export function createBackgroundTaskCoordinator(options = {}) {
     const inspected = timeline.inspect({ chat })
     const allOperations = Object.values(inspected.operations || {})
     const operations = allOperations.filter(function (operation) {
-      return operation && operation.kind === 'agent'
+      // Rolled-back branches keep their task history, not their current activity.
+      return operation && operation.kind === 'agent' &&
+        str(operation.basedOn && operation.basedOn.branchId) === inspected.branchId
     }).sort(function (left, right) {
       return (Number(right.createdAt) || 0) - (Number(left.createdAt) || 0)
     })
