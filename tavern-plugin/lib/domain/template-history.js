@@ -103,7 +103,10 @@ function restoreCompactionCheckpoints(session, events) {
     if (!isCompactionCheckpoint(event) || !String(event.data?.id || '').startsWith(EDIT_PREFIX)) continue
     while (isCompactionCheckpoint(event) && String(event.data?.id || '').startsWith(EDIT_PREFIX)) event = bySeq.get(event.sourceEventSeqs?.[0])
     if (!isCompactionCheckpoint(event)) continue
-    replaceSessionSurface(session, 'user/message', event.data, { start: seq, end: seq, sourceEventSeqs: [seq] })
+    // A restore is an ordinary plugin replacement, not a new native compaction transaction.
+    const source = event.data.source
+    const data = source.kind === 'compact-checkpoint' ? { ...event.data, source: { ...source, kind: 'plugin:compact' } } : event.data
+    replaceSessionSurface(session, 'user/message', data, { start: seq, end: seq, sourceEventSeqs: [seq] })
     changed = true
   }
   return changed
