@@ -2039,9 +2039,11 @@ export async function apply(ctx) {
     targetAgent.inbox.clear()
     const lastNativeTurn = Number(sessionEvents(target).findLast(event => event.type === 'turn/start')?.data?.turn) || 0
     const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn })
-    // The choice belongs to the source conversation, including when forking an earlier round.
-    if (typeof source.storyToolCall === 'boolean') fork.storyToolCall = source.storyToolCall
-    else delete fork.storyToolCall
+    // The choices belong to the source conversation, including when forking an earlier round.
+    for (const name of ['storyToolCall', 'storyHistoryToolCall']) {
+      if (typeof source[name] === 'boolean') fork[name] = source[name]
+      else delete fork[name]
+    }
     fork.forkedFrom = { ...fork.forkedFrom, chatId: source.id, sessionId: source.sessionId, storageRevision: source._storageRevision,
       stateChatId: state.id, stateRevision: state._storageRevision, turn, atSeq }
     await conversationRegistry.publish(fork)

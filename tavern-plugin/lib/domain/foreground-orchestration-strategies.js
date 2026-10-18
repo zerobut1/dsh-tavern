@@ -312,7 +312,7 @@ export function createNativePlayOrchestrationStrategy(options) {
       // A replayed transcript calls a tool. Strict providers reject a call whose
       // declaration is missing, so replay only when this turn offers submit_story;
       // the per-game tool switch can still remove it after the global settings say on.
-      const historyWanted = typeof options.historyToolCall === 'function' ? (await options.historyToolCall()) === true : false
+      const historyWanted = typeof input.chat?.storyHistoryToolCall === 'boolean' ? input.chat.storyHistoryToolCall : typeof options.historyToolCall === 'function' ? (await options.historyToolCall()) === true : false
       const outputWanted = typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false
       const submitVisible = typeof options.visibleTools !== 'function'
         || (await options.visibleTools(sessionId)).includes(STORY_SUBMIT_TOOL_NAME)

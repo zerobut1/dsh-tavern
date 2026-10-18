@@ -443,7 +443,7 @@ export function createNativeConversationStorage({dataRoot,onIO}){
   if(!view)return null
   const chat=await selectedHeader(id,view,['id','sessionId','_storageRevision','mode','cardPath','cardContextRevision',
    'backgroundConfigVersion','conversationFeaturesVersion','disabledWritingSkills','contextCompaction','updatedAt','timeline','candidateAgent',
-   'cardName','requestMode','statusBarPlacement','statusSections','webSearchEnabled','storyToolCall','candidates','taskMailbox','regenInProgress','settleError','scriptState',
+   'cardName','requestMode','statusBarPlacement','statusSections','webSearchEnabled','storyToolCall','storyHistoryToolCall','candidates','taskMailbox','regenInProgress','settleError','scriptState',
    'hiddenDshErrorTurns','suppressedDshTurns','replacingDshTurns','regeneratedDshTurns','tavernHelperLifecycleRevision','importHistory','rollbackUndo','pendingMvuSettlement'])
   if(Object.values(chat.timeline?.operations??{}).some(op=>op?.kind==='body'&&op.status==='foreground-completed'))return projectChatSessionState((await read(id)).chat)
   // Cached rows never leave this module: full projections detach them below,

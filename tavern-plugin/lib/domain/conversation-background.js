@@ -27,11 +27,12 @@ export function patchConversationBackground(chat, patch) {
     if (!Array.isArray(patch.disabledForegroundTools)) throw new Error('前台工具配置无效')
     next.disabledForegroundTools = normalizeDisabledForegroundTools(patch.disabledForegroundTools)
   }
-  if (Object.hasOwn(patch, 'storyToolCall')) {
-    if (patch.storyToolCall === null) delete next.storyToolCall
+  for (const [name, label] of [['storyToolCall', '正文走工具调用'], ['storyHistoryToolCall', '历史正文也走工具调用']]) {
+    if (!Object.hasOwn(patch, name)) continue
+    if (patch[name] === null) delete next[name]
     else {
-      if (typeof patch.storyToolCall !== 'boolean') throw new Error('正文走工具调用设置必须为布尔值或 null')
-      next.storyToolCall = patch.storyToolCall
+      if (typeof patch[name] !== 'boolean') throw new Error(label + '设置必须为布尔值或 null')
+      next[name] = patch[name]
     }
   }
   return next

@@ -13,7 +13,7 @@ export function createConversationBackgroundSettings({ readConfig, readChat, upd
   function present(chat) {
     return { backgroundModel: chat.backgroundModelSelection || null,
       backgroundTasks: normalizeBackgroundTasks(chat.backgroundTasks), webSearchEnabled: chat.webSearchEnabled === true,
-      storyToolCall: chat.storyToolCall ?? null,
+      storyToolCall: chat.storyToolCall ?? null, storyHistoryToolCall: chat.storyHistoryToolCall ?? null,
       disabledForegroundTools: normalizeDisabledForegroundTools(chat.disabledForegroundTools) }
   }
   async function toolCatalog(chat, sessionId) {

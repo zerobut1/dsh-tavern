@@ -89,11 +89,13 @@
 
 入口：[regex-library.js](tavern-plugin/src/client/features/regex-library.js)、[tavern-extension-settings.js](tavern-plugin/lib/domain/tavern-extension-settings.js)、[reply-presentation.js](tavern-plugin/lib/domain/reply-presentation.js)、[story-compaction.js](tavern-plugin/lib/domain/story-compaction.js)、[model-stream.js](tavern-plugin/lib/hooks/model-stream.js)、[history-tool-call.js](tavern-plugin/lib/domain/history-tool-call.js)。
 
-### 12. 每局正文工具调用设置
+### 12. 每局正文及历史正文工具调用设置
 
 “正文走工具调用”支持每局覆盖全局默认，分叉继承来源对话的设置。兼容 DSH 0.2.1 的工具结果结构，并在有效的原生步骤内将提交结果落为正文，避免完整提交后仍报“没有返回正文”。
 
-上游提供工具结果读取适配时优先复用。这里的每局设置控制本轮正文提交；上游的“历史正文也走工具调用”仍是独立开关，默认行为保持上游设置。
+“历史正文也走工具调用”同样支持每局选择“跟随全局／开启／关闭”，从下一次请求生效，分叉继承来源对话的当前设置。两个选项相互独立；未单独设置的旧对话继续跟随全局默认。
+
+上游提供工具结果读取适配时优先复用。历史正文工具回放继续先执行隐藏文本正则，只改变发送给模型的历史形式。
 
 入口：[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
 
