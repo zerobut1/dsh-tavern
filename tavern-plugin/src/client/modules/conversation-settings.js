@@ -212,7 +212,7 @@ function createConversationSettingsModule({
         const [catalog, setCatalog] = React.useState([]);
         const [selection, setSelection] = React.useState(null);
         const [tasks, setTasks] = React.useState({ variables: true, posture: true });
-        const [features, setFeatures] = React.useState({ webSearchEnabled: false, mvuCard: false });
+        const [features, setFeatures] = React.useState({ webSearchEnabled: false, mvuCard: false, storyToolCall: null });
         const [loaded, setLoaded] = React.useState(false);
         const [busy, setBusy] = React.useState(false);
         const [error, setError] = React.useState("");
@@ -224,7 +224,7 @@ function createConversationSettingsModule({
             try {
                 const result = await rpc("getConversationBackgroundConfig", { sessionId: props.sessionId }, props.sessionId);
                 setCatalog(result.modelCatalog || []); setSelection(result.backgroundModel);
-                setTasks(result.backgroundTasks); setFeatures({ webSearchEnabled: result.webSearchEnabled === true, mvuCard: result.mvuCard === true }); setLoaded(true);
+                setTasks(result.backgroundTasks); setFeatures({ webSearchEnabled: result.webSearchEnabled === true, mvuCard: result.mvuCard === true, storyToolCall: result.storyToolCall ?? null }); setLoaded(true);
             } catch (err) { setError(String(err.message || err)); }
         }
         React.useEffect(() => { void load(); }, []);
@@ -240,7 +240,7 @@ function createConversationSettingsModule({
             setBusy(true); setError(""); setNotice("");
             try {
                 const result = await rpc("setConversationBackgroundConfig", Object.assign({ sessionId: props.sessionId, backgroundModel: selection }, patch), props.sessionId);
-                setSelection(result.backgroundModel); setTasks(result.backgroundTasks); setFeatures({ ...features, webSearchEnabled: result.webSearchEnabled });
+                setSelection(result.backgroundModel); setTasks(result.backgroundTasks); setFeatures({ ...features, webSearchEnabled: result.webSearchEnabled, storyToolCall: result.storyToolCall ?? null });
                 setNotice("已保存");
                 invalidateView(props.sessionId);
             } catch (err) { setError(String(err.message || err)); }
@@ -265,7 +265,11 @@ function createConversationSettingsModule({
                 features.mvuCard ? toggle("variables", "变量结算", "关闭后变量和状态栏不再更新。", tasks.variables, checked => ({ backgroundTasks: { variables: checked } })) : null,
                 toggle("posture", "人物姿势", "每轮总结人物的位置、动作和姿势，供前台保持一致。", tasks.posture, checked => ({ backgroundTasks: { posture: checked } })),
                 toggle("styleReference", "文风联想", "仅自由模式。每轮后台凭记忆摘一段风格相近的小说原文，供下一轮正文借鉴笔调。多一次后台请求。", tasks.styleReference === true, checked => ({ backgroundTasks: { styleReference: checked } })),
-                toggle("webSearchEnabled", "联网搜索", "前台和后台可按需搜索。", features.webSearchEnabled, checked => ({ webSearchEnabled: checked }))),
+                toggle("webSearchEnabled", "联网搜索", "前台和后台可按需搜索。", features.webSearchEnabled, checked => ({ webSearchEnabled: checked })),
+                h("label", { className: "dsh-tavern-background-task" },
+                    h("span", null, "正文走工具调用", h("span", { className: "dsh-tavern-settings-desc" }, "可覆盖全局默认，从下一次正文生成生效。")),
+                    h("select", { "aria-label": "本局正文走工具调用", className: "dsh-tavern-settings-select", value: features.storyToolCall === null ? "" : String(features.storyToolCall), disabled: !loaded || busy, onChange: event => save({ storyToolCall: event.target.value === "" ? null : event.target.value === "true" }) },
+                        h("option", { value: "" }, "跟随全局"), h("option", { value: "true" }, "开启"), h("option", { value: "false" }, "关闭")))),
             error || key && reasoning.key === key && reasoning.error ? h("p", { role: "alert", className: "dsh-tavern-prompt-error" }, error || reasoning.error) : null,
             notice ? h("p", { role: "status" }, notice) : null,
             !loaded && error ? h("button", { className: "dsh-tavern-btn", onClick: load }, "重试") : null,

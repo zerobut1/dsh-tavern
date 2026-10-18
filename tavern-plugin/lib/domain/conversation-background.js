@@ -27,6 +27,13 @@ export function patchConversationBackground(chat, patch) {
     if (!Array.isArray(patch.disabledForegroundTools)) throw new Error('前台工具配置无效')
     next.disabledForegroundTools = normalizeDisabledForegroundTools(patch.disabledForegroundTools)
   }
+  if (Object.hasOwn(patch, 'storyToolCall')) {
+    if (patch.storyToolCall === null) delete next.storyToolCall
+    else {
+      if (typeof patch.storyToolCall !== 'boolean') throw new Error('正文走工具调用设置必须为布尔值或 null')
+      next.storyToolCall = patch.storyToolCall
+    }
+  }
   return next
 }
 

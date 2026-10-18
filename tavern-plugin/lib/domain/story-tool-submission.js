@@ -79,7 +79,8 @@ export function appendStorySubmissionReminder(assembly, outputEnabled) {
 
 /** A Tavern settings switch; it applies to story and script play only. */
 export function storyToolCallEnabled(chat, enabled) {
-  return enabled === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
+  const selected = typeof chat?.storyToolCall === 'boolean' ? chat.storyToolCall : enabled
+  return selected === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
 }
 
 function validContent(content) {
