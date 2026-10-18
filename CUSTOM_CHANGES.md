@@ -1,0 +1,134 @@
+# custom 分支修改备忘
+
+本文件记录个人 `custom` 分支相对上游的源码改动，供日常维护和再次 rebase 时核对。
+
+- 整理日期：2026-10-18。
+- 本次基线：`upstream/main`，提交 `8db6302bc441b1fa0bb7abf6d14860e65973c785`，Tavern 3.0.0。
+- 33 个原始提交按功能整理为下列 17 个提交；整理前后源码文件树完全一致。
+- 提交标题和说明均使用中文；合并同一功能的初版及后续修补，按依赖关系排序。
+
+## 同步上游的原则
+
+1. 保留上游新增功能。
+2. 上游已经覆盖的修复采用上游实现；核对行为后移除重复的本地补丁。
+3. 上游尚未提供的个人新增功能继续保留。
+4. 只有实际功能取舍无法同时满足时才需要确认；普通代码冲突按上述原则处理。
+5. 后续新增或调整功能时，更新本文件，并将独立功能或修复单独提交。
+
+## 功能清单
+
+以下编号对应整理后的提交顺序。源码链接指向主要维护入口，不穷举生成文件。
+
+### 01. 项目环境
+
+固定 `packageManager` 为 `pnpm@11.25.0`，并忽略本地 `.kimix_cache`。
+
+入口：[package.json](package.json)、[.gitignore](.gitignore)。
+
+### 02. 关闭子代理并重新创建干净上下文
+
+提供本局子代理管理与关闭入口，停用旧上下文的复用并释放常驻实例。后续后台或生图任务按需创建新会话，旧检查点不能将已关闭的上下文重新带回来。原生页头与酒馆列表同步过滤已关闭的子代理。
+
+关闭后仍保留历史日志；这项功能不等于删除磁盘存档。运行中的任务受到关闭条件检查。
+
+入口：[background-agent-sessions.js](tavern-plugin/lib/background-agent-sessions.js)、[background-session-retirement.js](tavern-plugin/lib/domain/background-session-retirement.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[subagent-catalog-sync.js](tavern-plugin/src/client/subagent-catalog-sync.js)。
+
+### 03. 角色卡 HTML 开场兼容
+
+兼容依赖视口高度、绝对定位的开场页面，避免自动高度计算破坏布局。整体缩进的完整 HTML 文档仍按页面渲染。兼容通过 `setChatMessages` 批量接口选择角色卡已有开场。
+
+入口：[frame-viewport-height.js](tavern-plugin/src/client/modules/frame-viewport-height.js)、[frame-document.js](tavern-plugin/src/client/runtime/frame-document.js)、[display-source.js](tavern-plugin/lib/domain/display-source.js)、[opening-preview.js](tavern-plugin/src/client/opening-preview.js)。
+
+### 04. 静态状态栏保留
+
+首轮正文没有提供新的状态栏片段时，继续使用角色卡开场提供的静态面板，避免首轮回复后面板消失。
+
+入口：[persistent-status-view.js](tavern-plugin/lib/domain/persistent-status-view.js)。
+
+### 05. 酒馆助手变量宏与世界书缓存
+
+原生世界书展开酒馆助手变量宏，包括 `{{format_message_variable::stat_data}}`。读取消息变量的条目视为动态内容，避免变化中的变量进入固定的世界书缓存前缀。
+
+入口：[worldbook-recall.js](tavern-plugin/lib/domain/worldbook-recall.js)、[worldbook-placement.js](tavern-plugin/lib/domain/worldbook-placement.js)。
+
+### 06. 前台写作规则以预设为主
+
+精简开局的固定写作示例和重复的正文限制，让预设与人物卡决定文风及输出形式。保留前台只读查询变量、后台负责 MVU 更新的分工约束。
+
+入口：[session-seed-trajectory.js](tavern-plugin/lib/domain/session-seed-trajectory.js)、[turn-orchestration.js](tavern-plugin/lib/domain/turn-orchestration.js)。
+
+### 07. 排除历史世界书快照
+
+前台请求、压缩材料与上下文计量排除历史轮次注入的世界书快照，保留当前轮快照，减少重复上下文。历史快照仍保存在原始会话日志中；这项修改不改变世界书条目的检索和激活策略。
+
+入口：[worldbook-snapshot.js](tavern-plugin/lib/domain/worldbook-snapshot.js)、[foreground-orchestration-strategies.js](tavern-plugin/lib/domain/foreground-orchestration-strategies.js)、[story-compaction.js](tavern-plugin/lib/domain/story-compaction.js)、[tavern-token-meter.js](tavern-plugin/lib/domain/tavern-token-meter.js)。
+
+### 08. 分叉与重写轮次定位
+
+恢复重写正文的分叉入口，按故事轮次对应的原生轮次定位历史检查点。新分支清空继承的待发送队列，防止发送新消息时再次提交来源对话的旧输入。
+
+入口：[conversation-fork-point.js](tavern-plugin/lib/domain/conversation-fork-point.js)、[conversation-fork-targets.js](tavern-plugin/lib/domain/conversation-fork-targets.js)、[index.js](tavern-plugin/lib/index.js) 中的分叉绑定逻辑。
+
+### 09. 回退后的结算状态显示
+
+当前结算状态只使用当前时间线分支的任务记录，避免回退前的旧分支任务覆盖状态显示。这项补丁仅修正任务状态的选择，不改变变量回退算法。
+
+入口：[background-task-coordinator.js](tavern-plugin/lib/domain/background-task-coordinator.js)。
+
+### 10. 原生历史修复与压缩检查点保护
+
+将恢复正文的原生修复事件识别为历史编辑，保护模板同步过程中的原生压缩检查点。修复正文时必须在有效的原生轮次和步骤内写入，故事轮次另行保留，避免运行时看似正常、重启后却因日志格式校验失败而无法加载。
+
+入口：[session-surface-mutations.js](tavern-plugin/lib/domain/session-surface-mutations.js)、[native-surface-repair.js](tavern-plugin/lib/domain/native-surface-repair.js)、[compaction-checkpoint.js](tavern-plugin/lib/domain/compaction-checkpoint.js)、[template-history.js](tavern-plugin/lib/domain/template-history.js)。
+
+### 11. 全局正则管理及统一过滤
+
+恢复已保存正文的预设正则。在正则库中展示全局正则，并提供独立开关及“显示与上下文／仅显示／仅上下文”作用范围。
+
+普通历史、压缩输入和压缩后保留的原文复用上下文正则。开启上游“历史正文也走工具调用”时，在正文转成工具参数之前先执行过滤，防止隐藏文本绕过正则。原始日志保留原文。
+
+入口：[regex-library.js](tavern-plugin/src/client/features/regex-library.js)、[tavern-extension-settings.js](tavern-plugin/lib/domain/tavern-extension-settings.js)、[reply-presentation.js](tavern-plugin/lib/domain/reply-presentation.js)、[story-compaction.js](tavern-plugin/lib/domain/story-compaction.js)、[model-stream.js](tavern-plugin/lib/hooks/model-stream.js)、[history-tool-call.js](tavern-plugin/lib/domain/history-tool-call.js)。
+
+### 12. 每局正文工具调用设置
+
+“正文走工具调用”支持每局覆盖全局默认，分叉继承来源对话的设置。兼容 DSH 0.2.1 的工具结果结构，并在有效的原生步骤内将提交结果落为正文，避免完整提交后仍报“没有返回正文”。
+
+上游提供工具结果读取适配时优先复用。这里的每局设置控制本轮正文提交；上游的“历史正文也走工具调用”仍是独立开关，默认行为保持上游设置。
+
+入口：[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
+
+### 13. 兼容调用记录错误的恢复显示
+
+记录失败时保留实际异常，交给正常错误策略处理；成功后清除旧提示。已销毁的面板不再上报迟到错误，空批次不触发无意义的写入。
+
+入口：[helper-script-runtime.js](tavern-plugin/src/client/runtime/helper-script-runtime.js)。
+
+### 14. 消息滚动与文本高亮性能
+
+只为实际匹配到文本的范围注册高亮，减少空范围和重复处理带来的滚动开销。
+
+入口：[text-colors.js](tavern-plugin/src/client/text-colors.js)。
+
+### 15. 完整生图提示词提交
+
+增加完整提示词提交接口，适配 ComfyUI 直接使用完整提示词的方式，为首次构图和调整提供对应提示词。其他生图模式继续使用原有流程。
+
+入口：[scene-image-prompt.js](tavern-plugin/lib/domain/scene-image-prompt.js)、[scene-illustration.js](tavern-plugin/lib/domain/scene-illustration.js)、[scene-image-direct-plan.md](tavern-plugin/prompts/scene-image-direct-plan.md)、[scene-image-direct-adjustment.md](tavern-plugin/prompts/scene-image-direct-adjustment.md)。使用说明见[场景生图文档](docs/scene-images.md)。
+
+### 16. 首次生图参考意见
+
+点击生图按钮后，在消息操作区下方展开可选参考意见输入框。意见传给构图任务，留空时自动构图。
+
+入口：[scene-images.js](tavern-plugin/src/client/features/scene-images.js)、[scene-illustration.js](tavern-plugin/lib/domain/scene-illustration.js)。
+
+### 17. 手机轻量聊天与角色卡状态栏
+
+增加基于 assistant-ui ChatGPT 界面的 `/mobile` 入口，提供基础消息收发和单独查看角色卡状态栏的界面，接入现有手机访问服务。复用电脑端的生成、历史和显示投影，避免向手机聊天界面直接输出原始隐藏文本或面板 HTML。
+
+入口：[手机界面源码](tavern-plugin/src/mobile/)、[mobile-chat.js](tavern-plugin/lib/http/mobile-chat.js)、[mobile-access.js](tavern-plugin/lib/http/mobile-access.js)、[mobile-status.js](tavern-plugin/src/client/features/mobile-status.js)。
+
+## 不随这些提交保存的数据
+
+角色卡具体配置、预设、全局正则的实际规则、MVU 变量、聊天存档和本地立绘等属于用户数据，需要单独备份。Git 分支及本文件不能代替存档备份。
+
+前端生成文件 `tavern-plugin/lib/client.js` 随对应功能提交；修改前端源码后通过现有构建脚本更新，避免源码与实际加载内容不一致。
