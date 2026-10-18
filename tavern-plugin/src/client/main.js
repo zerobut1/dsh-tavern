@@ -894,6 +894,8 @@ window.__ModuleLoader__.load({
 // @include features/conversation-header.js
 // @include-domain play-interaction-flow.js
 // @include features/play-interaction-panels.js
+// @include features/mobile-status.js
+
 // @include features/play-controls.js
 
 // @include features/request-context.js
@@ -932,6 +934,7 @@ window.__ModuleLoader__.load({
 			if (!signals || typeof signals.subscribe !== "function") throw new Error("DSH Tavern Remote 状态流不可用");
 			tavernSessionSignals = signals;
 			ctx.effect(() => tavernStageRuntime.start(ctx.sessions), "dsh-tavern: session-owned stage runtime");
+			registerTavernMobileStatus(ctx);
 			ctx.effect(function () { return function () { if (tavernSessionSignals === signals) tavernSessionSignals = undefined; }; }, "dsh-tavern: remote session signals");
 			ctx.effect(function () { return tavernRuntimeGenerationMonitor.start(); }, "dsh-tavern: runtime generation monitor");
 			function reconcileLibraryTabTitles() {

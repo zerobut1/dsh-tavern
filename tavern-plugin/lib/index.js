@@ -10,6 +10,8 @@ import { createCardEditor } from './domain/card-editor.js'
 import { ensureSessionVariableDirectory } from './domain/session-variable-directory.js'
 import { registerTavernHttpRoutes } from './http/routes.js'
 import { installChatAnswerBootPatch } from './domain/chat-answer-boot-patch.js'
+import { startMobileAccess } from './http/mobile-access.js'
+import { createMobileChatApi, registerMobileChatRoutes } from './http/mobile-chat.js'
 import { registerRequestHooks } from './hooks/request.js'
 import { createWholeReadGuard, scopeTurnHooks } from './domain/whole-read-guard.js'
 import { createChatReads } from './domain/chat-reads.js'
@@ -3389,8 +3391,17 @@ export async function apply(ctx) {
     createPluginHandlers(rpcDeps),
     createConversationHandlers(rpcDeps),
     createPlayHandlers(rpcDeps))
+  const mobileChatApi = createMobileChatApi({
+    listSessions: listTavernSessions, readState: sessionStateForSession,
+    readHistory: async id => { const chat = await chatForSession(id); return { chat, view: await sessionProjection.project.full(chat) } },
+    activity: chat => backgroundTasks.activity(chat),
+    foreground: id => agentRegistry.get(id)?.phase?.kind === 'running',
+    prompt: (request, signal) => ctx.get('sessionController').prompt(request, signal),
+    demand: id => serverScripts?.demand(id),
+  })
 
   async function dispatchMethod(method, args, serverTemplate = false) {
+    if (method.startsWith('mobile.')) return await mobileChatApi.call(method.slice(7), args || {})
     if (method.startsWith('gameplay.')) return await gameplayApi.call(method.slice(9), args || {})
     const handler = rpcHandlers[method]
     if (!handler) throw new Error('未知方法: ' + method)
@@ -3463,6 +3474,8 @@ export async function apply(ctx) {
   })
   // A desktop host's chat view sits in a read-only app.asar: patch its answer step in the page.
   installChatAnswerBootPatch(ctx)
+  ctx.effect(() => startMobileAccess(ctx), 'dsh-tavern: mobile access')
+  registerMobileChatRoutes(ctx)
   // Card scripts run on the server by default; DSH_TAVERN_SERVER_SCRIPTS=0 leaves them to the page.
   if (process.env.DSH_TAVERN_SERVER_SCRIPTS !== '0') {
     serverScripts = createServerScriptExecutor({

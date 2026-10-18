@@ -3,6 +3,7 @@
   "version": "3.1.0",
   "packageManager": "pnpm@11.25.0",
   "scripts": {
+    "build:mobile": "node tavern-plugin/src/mobile/build.mjs",
     "build:client": "node bin/build-tavern-client.mjs",
     "check:client": "node bin/build-tavern-client.mjs --check",
     "docs:build": "node docs/manual/build.mjs",
@@ -24,6 +25,7 @@
     "test:e2e:card-memory": "node bin/build-tavern-client.mjs --check && node tests/e2e/gameplay.mjs --card-memory"
   },
   "dependencies": {
+    "dsh-pocket": "2.12.0",
     "acorn": "8.15.0",
     "chevrotain": "^11.2.0",
     "jsdom": "26.1.0",
@@ -60,7 +62,6 @@
     "scheduler": "0.27.0",
     "dsh-tavern-plugin": "link:./tavern-plugin",
     "dsh-tavern-remote": "link:./tavern-plugin/packages/dsh-tavern-remote",
-    "dsh-pocket": "2.12.0",
     "dsh-web-mobile": "3.1.0",
     "dsh-better-sidebar": "0.28.0",
     "dsh-dream-skin": "link:./tavern-plugin/packages/dsh-dream-skin"

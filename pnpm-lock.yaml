@@ -37,6 +37,9 @@ importers:
       dsh-mnemon-source-runtime:
         specifier: 0.5.14
         version: 0.5.14(dsh-mnemon@0.5.31(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
+      dsh-pocket:
+        specifier: 2.12.0
+        version: 2.12.0(patch_hash=1b0fac9bc15853908a97cd3cd9cea13aa17484e649ce423b5f9bcbecd61ef42e)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -65,9 +68,6 @@ importers:
       dsh-dream-skin:
         specifier: link:./tavern-plugin/packages/dsh-dream-skin
         version: link:tavern-plugin/packages/dsh-dream-skin
-      dsh-pocket:
-        specifier: 2.12.0
-        version: 2.12.0(patch_hash=1b0fac9bc15853908a97cd3cd9cea13aa17484e649ce423b5f9bcbecd61ef42e)
       dsh-tavern-plugin:
         specifier: link:./tavern-plugin
         version: link:tavern-plugin

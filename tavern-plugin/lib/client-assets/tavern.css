@@ -3319,3 +3319,5 @@ html[data-dsh-text-layout] :is(.dsh-tavern-assistant, .dsh-tavern-user-bubble, .
 .dsh-tavern-assistant-fold-back:hover { border-color: var(--dsh-tavern-accent-border); color: var(--dsh-tavern-accent); }
 .dsh-tavern-composer-slot { display: flex; flex-direction: column; min-width: 0; max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
 .dsh-tavern-plugin-slot-error { padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+/* The phone's on-demand card panel uses the same renderer as the PC status bar. */
+.dsh-tavern-mobile-status{position:fixed;inset:0;z-index:2147483000;pointer-events:auto;overflow:auto;background:var(--dsw-alias-bg-base,#fff);padding:8px;overscroll-behavior:contain}
