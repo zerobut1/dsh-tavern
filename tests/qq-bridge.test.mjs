@@ -116,6 +116,47 @@ test('长消息按 Unicode 字符分段，拒绝无界刷屏', () => {
   assert.throws(() => splitQqReply('字'.repeat(30001)))
 })
 
+test('空行分成独立 QQ 消息，兼容 Windows 换行，保留段内换行且不发送空段', () => {
+  assert.deepEqual(splitQqReply('  第一条\r\n\r\n第二条\r\n  \t\r\n\r\n第三条\n段内换行\n\n  '), ['第一条', '第二条', '第三条\n段内换行'])
+  assert.deepEqual(splitQqReply('\n \n\t\n'), [])
+  assert.deepEqual(splitQqReply('短消息'), ['短消息'])
+  assert.deepEqual(splitQqReply('😀😀😀\n\n好', 2), ['😀😀', '😀', '好'])
+  for (const limit of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => splitQqReply('消息', limit), /正整数/)
+  assert.equal(splitQqReply(Array(20).fill('短句').join('\n\n')).length, 20)
+  assert.throws(() => splitQqReply(Array(21).fill('短句').join('\n\n')), /20 条/)
+})
+
+test('一轮多段回复依序投递，分段中关闭开关会拦截剩余消息', async t => {
+  const f = await fixture(t, { messenger: { async send() { return { text: '在呢\n\n刚忙完\n\n怎么啦' } } } })
+  await f.processor.handle(event())
+  assert.deepEqual(f.sent.map(row => row.params.message[0].data.text), ['在呢', '刚忙完', '怎么啦'])
+  assert.ok(f.sent.every(row => row.params.user_id === 987654321 && row.action === 'send_private_msg'))
+  f.client.call = async (action, params) => { f.sent.push({ action, params }); f.disable() }
+  await f.processor.handle(event({ message_id: 43 }))
+  assert.equal(f.sent.length, 4)
+  assert.equal(f.sent.at(-1).params.message[0].data.text, '在呢')
+  assert.equal((await f.store.readJson(QQ_BRIDGE_STATE)).receipts['123456789:987654321:43'].status, 'suppressed')
+})
+
+test('分段超限时整轮不投递；中间一条发送失败不会重发前文或继续发送', async t => {
+  const f = await fixture(t, { messenger: { async send() { return { text: Array(21).fill('短句').join('\n\n') } } } })
+  await f.processor.handle(event())
+  assert.equal(f.sent.length, 0)
+  assert.equal(f.errors.length, 1)
+  const g = await fixture(t, { messenger: { async send() { return { text: '第一条\n\n第二条\n\n第三条' } } } })
+  let attempts = 0
+  g.client.call = async (_action, params) => {
+    attempts++
+    if (attempts === 2) throw new Error('模拟未收到发送确认')
+    g.sent.push(params.message[0].data.text)
+  }
+  await g.processor.handle(event()); await g.processor.handle(event())
+  assert.equal(attempts, 2)
+  assert.deepEqual(g.sent, ['第一条'])
+  assert.equal(g.errors.length, 1)
+  assert.equal((await g.store.readJson(QQ_BRIDGE_STATE)).receipts['123456789:987654321:42'].status, 'failed')
+})
+
 test('setup 只读取 NapCat 配置，固定唯一对话，带 Token 的配置留在数据目录且默认禁用', async t => {
   const { root, store } = await tempStore(t)
   const napcat = path.join(root, 'NapCat')

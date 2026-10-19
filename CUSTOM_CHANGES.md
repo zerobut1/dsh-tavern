@@ -33,6 +33,8 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 通过本机 NapCat OneBot 11 正向 WebSocket，将白名单好友的文字私聊提交到固定的 Tavern 原生对话，沿用角色卡、预设、世界书和后台结算。按输入请求编号取得本轮正文，只发送显示投影中的文字；支持对话别名切换、持久化消息去重、串行处理和断线重连。
 
+2026-10-20 起，回复按空行分条投递，显示投影中的独立文字块保留段落边界；段内单个换行保留，超长段落再按 Unicode 字符切分。整轮超出 20 条时在发送前拒绝；分条发送仍逐条检查授权，失败时不重试或续发。
+
 默认禁用；`bin/qq-bridge.mjs` 提供配置、只读检查、状态与手动启停，禁用状态不连接 NapCat。群聊、临时会话、自身消息及非文字输入不处理；每次发送前重新检查开关、账号和白名单。用户的 Token 和绑定保存在被 Git 忽略的数据目录。
 
 入口：[qq-bridge.md](docs/qq-bridge.md)、[qq-bridge-runtime.js](tavern-plugin/lib/qq-bridge-runtime.js)、[qq-bridge.js](tavern-plugin/lib/domain/qq-bridge.js)、[conversation-messenger.js](tavern-plugin/lib/domain/conversation-messenger.js)。

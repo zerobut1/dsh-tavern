@@ -51,3 +51,15 @@ test('撤销请求能中止等待，纯 HTML 回复不会回退发送原始面�
   const html = fixture({ readHistory: async () => ({ chat: { id: binding.chatId, sessionId: binding.sessionId, messages: [{ role: 'assistant', turn: 7, text: '<script>private()</script>' }] }, view: { replyProjections: [{ turn: 7, parts: [{ kind: 'html', html: '<script>private()</script>' }] }] } }) })
   await assert.rejects(html.messenger.send(binding, '你好', { requestId: 'own' }), /没有可发送/)
 })
+
+test('显示投影中的多段文字保留段落边界，过滤 HTML 与思考后交给 QQ 分条', async () => {
+  const f = fixture({ readHistory: async () => ({
+    chat: { id: binding.chatId, sessionId: binding.sessionId, messages: [{ role: 'assistant', turn: 7, text: '不直接发送原始正文' }] },
+    view: { replyProjections: [{ turn: 7, parts: [
+      { kind: 'markdown', text: '在呢' }, { kind: 'html', html: '<div>状态栏</div>' },
+      { kind: 'markdown', text: '<think>隐藏内容</think>刚忙完\n\n怎么啦' }
+    ] }] }
+  }) })
+  const result = await f.messenger.send(binding, '你好', { requestId: 'own' })
+  assert.equal(result.text, '在呢\n\n刚忙完\n\n怎么啦')
+})

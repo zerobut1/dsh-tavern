@@ -16,10 +16,19 @@ export function privateQqText(event, config, since, now = Date.now()) {
 }
 
 export function splitQqReply(text, limit = 1500) {
-  const characters = Array.from(text)
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error('QQ 消息长度限制必须为正整数')
   const parts = []
-  for (let i = 0; i < characters.length; i += limit) parts.push(characters.slice(i, i + limit).join(''))
-  if (parts.length > 20) throw new Error('回复超过 30000 字，请在 Tavern 查看')
+  // A blank line separates chat bubbles; a single newline stays inside its
+  // paragraph (lists, quoted text, etc.). Validate the entire reply before any
+  // send so an excessive paragraph count cannot produce a partial flood.
+  const paragraphs = String(text).replace(/\r\n?/g, '\n').split(/\n(?:[^\S\n]*\n)+/u)
+  for (const paragraph of paragraphs) {
+    const characters = Array.from(paragraph.trim())
+    for (let i = 0; i < characters.length; i += limit) {
+      parts.push(characters.slice(i, i + limit).join(''))
+      if (parts.length > 20) throw new Error('回复超过 20 条消息或 30000 字，请在 Tavern 查看')
+    }
+  }
   return parts
 }
 
