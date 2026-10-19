@@ -3,8 +3,8 @@
 本文件记录个人 `custom` 分支相对上游的源码改动，供日常维护和再次 rebase 时核对。
 
 - 整理日期：2026-10-18。
-- 本次基线：`upstream/main`，提交 `8db6302bc441b1fa0bb7abf6d14860e65973c785`，Tavern 3.0.0。
-- 33 个原始提交按功能整理为下列 17 个提交；整理前后源码文件树完全一致。
+- 最近同步：2026-10-19，基线为 `upstream/main` 的 `6ec5705da1735b6f8709fc1da80e0aac20f93877`，Tavern 3.0.0。
+- 2026-10-18 曾将 33 个原始提交整理为 17 个功能提交，整理前后源码文件树完全一致。后续变更单独提交；已由上游覆盖的修复按维护原则移除。
 - 提交标题和说明均使用中文；合并同一功能的初版及后续修补，按依赖关系排序。
 
 ## 同步上游的原则
@@ -17,7 +17,7 @@
 
 ## 功能清单
 
-以下编号对应整理后的提交顺序。源码链接指向主要维护入口，不穷举生成文件。
+以下编号沿用首次整理时的顺序，已由上游接管的项目保留说明。源码链接指向主要维护入口，不穷举生成文件。
 
 ### 01. 项目环境
 
@@ -79,6 +79,8 @@
 
 将恢复正文的原生修复事件识别为历史编辑，保护模板同步过程中的原生压缩检查点。修复正文时必须在有效的原生轮次和步骤内写入，故事轮次另行保留，避免运行时看似正常、重启后却因日志格式校验失败而无法加载。
 
+2026-10-19 起，检查点识别、通用写入保护及整批历史修复使用上游实现。本地保留历史修复事件的编辑识别，以及模板恢复检查点时的来源保护。
+
 入口：[session-surface-mutations.js](tavern-plugin/lib/domain/session-surface-mutations.js)、[native-surface-repair.js](tavern-plugin/lib/domain/native-surface-repair.js)、[compaction-checkpoint.js](tavern-plugin/lib/domain/compaction-checkpoint.js)、[template-history.js](tavern-plugin/lib/domain/template-history.js)。
 
 ### 11. 全局正则管理及统一过滤
@@ -91,7 +93,7 @@
 
 ### 12. 每局正文及历史正文工具调用设置
 
-“正文走工具调用”支持每局覆盖全局默认，分叉继承来源对话的设置。兼容 DSH 0.2.1 的工具结果结构，并在有效的原生步骤内将提交结果落为正文，避免完整提交后仍报“没有返回正文”。
+“正文走工具调用”支持每局覆盖全局默认，分叉继承来源对话的设置。工具结果适配和提交正文时的编辑步骤保护已采用上游实现，本地继续提供单局开关。
 
 “历史正文也走工具调用”同样支持每局选择“跟随全局／开启／关闭”，从下一次请求生效，分叉继承来源对话的当前设置。两个选项相互独立；未单独设置的旧对话继续跟随全局默认。
 
@@ -99,9 +101,9 @@
 
 入口：[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
 
-### 13. 兼容调用记录错误的恢复显示
+### 13. 兼容调用记录失败提示（已由上游接管）
 
-记录失败时保留实际异常，交给正常错误策略处理；成功后清除旧提示。已销毁的面板不再上报迟到错误，空批次不触发无意义的写入。
+2026-10-19 起移除本地“弹出实际错误、成功后清除”的修复，采用上游方式：兼容能力调用记录保存失败时只写控制台警告，不弹前台错误。它只改变诊断记录失败的提示方式，不会补齐缺失的兼容接口，也不屏蔽其他运行错误。
 
 入口：[helper-script-runtime.js](tavern-plugin/src/client/runtime/helper-script-runtime.js)。
 
