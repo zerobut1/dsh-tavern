@@ -40,3 +40,9 @@ curl -s https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@$b/dsh-tavern-runtime.
 
 测试已有几千条，全量跑一次约 3 分钟。除非做版本发布，否则不要跑全量 `node bin/test-tavern.mjs`；只跑与改动相关的测试文件：
 `node bin/test-tavern.mjs tests/<相关>.test.mjs [更多文件…]`
+
+### custom 分支同步上游
+
+每次 rebase `upstream/main` 后，必须运行 `pnpm test:custom:unit`（或 `node bin/test-custom-unit.mjs`），全部通过后才报告同步完成。这个入口只运行自定义功能相关的单元测试，不启动浏览器、DSH 服务、NapCat 或真实模型请求，不要求端到端回归或全量测试。
+
+如果冲突涉及入口未覆盖的逻辑，补充或运行对应的单元测试；新增自定义功能时同步维护入口中的测试清单。测试失败或环境阻塞必须如实说明，不能按已通过处理。

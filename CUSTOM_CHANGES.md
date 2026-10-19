@@ -23,6 +23,12 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 入口：[test-tavern.mjs](bin/test-tavern.mjs)、[host-session-patch-preload.mjs](tests/fixtures/host-session-patch-preload.mjs)、[test-tavern-runner.test.mjs](tests/test-tavern-runner.test.mjs)。
 
+### 自定义功能单元测试
+
+执行 `pnpm test:custom:unit`（或 `node bin/test-custom-unit.mjs`）。每次 rebase 上游后必须运行，要求见 [AGENTS.md](AGENTS.md)。测试清单位于 [test-custom-unit.mjs](bin/test-custom-unit.mjs)，只运行相关单元测试；不启动浏览器或真实服务。
+
+覆盖子代理停用、目录过滤与任务状态、顶栏设置、开场及静态状态栏、动态世界书缓存、压缩输入过滤、分叉定位、正文正则与工具回放、每局设置、文本高亮、生图完整提示词及首次参考意见、手机接口和 QQ 桥接。外部服务以替身代替，个别持久化测试使用临时目录。CSS 布局、完整宿主生命周期和真实账号连通性仍属于人工或专门的集成测试范围。
+
 ### QQ 私聊桥接
 
 通过本机 NapCat OneBot 11 正向 WebSocket，将白名单好友的文字私聊提交到固定的 Tavern 原生对话，沿用角色卡、预设、世界书和后台结算。按输入请求编号取得本轮正文，只发送显示投影中的文字；支持对话别名切换、持久化消息去重、串行处理和断线重连。
