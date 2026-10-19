@@ -4,6 +4,49 @@ import assert from 'node:assert/strict'
 const empty = plugin => Object.freeze({ role: 'user', content: Object.freeze([]), source: Object.freeze({ kind: 'plugin', plugin }) })
 const metadata = empty('dsh-tavern')
 
+test('分卷压缩同时过滤历史世界书与隐藏正文，旧卷和最近原文各自保留', async () => {
+  const { registerModelStreamHooks } = await import('../tavern-plugin/lib/hooks/model-stream.js')
+  const hooks = [], sent = [], measured = []
+  const dispatch = (request, index = 0) => index < hooks.length
+    ? hooks[index](request, () => dispatch(request, index + 1))
+    : (async function * () { sent.push(request); yield { type: 'block-end', index: 0, block: { type: 'text', text: '【第 3–4 轮剧情摘要】新摘要' } }; yield { type: 'finish', reason: { kind: 'stop' } } })()
+  const ctx = { on: (name, hook) => { if (name === 'llm/stream') hooks.push(hook) }, llm: { stream: request => dispatch(request), resolveModelInfo: async () => undefined }, get: () => undefined }
+  const chat = { id: 'chat', mode: 'story', messages: Array.from({ length: 5 }, (_, index) => ({ role: 'assistant', turn: index + 1 })) }
+  const session = { seq: 0, surface: { nodes: [] } }
+  const project = text => text.replace(/<hidden>[\s\S]*?<\/hidden>/g, '')
+  registerModelStreamHooks({
+    ctx, agentRegistry: new Map(), sessionStore: new Map([['s', session]]), requestCoordinates: new Map(),
+    chatForSession: async () => chat, chatHeaderForSession: async () => chat, sessionStateForSession: async () => chat,
+    backgroundAgentRunner: { owns: () => false, requestContext: () => null },
+    foregroundStrategies: { projectRequest: () => null, completeRequest() {} },
+    storyRetention: async request => { measured.push(JSON.stringify(request.messages)); return { rounds: 1, volumeBudget: Infinity, estimate: text => text.length, projectAssistantText: project } },
+    runtimePrompt: () => '剧情压缩提示', str: String
+  })
+  const player = (id, text) => ({ id, role: 'user', source: { kind: 'human' }, content: [{ type: 'text', text }] })
+  const body = (id, text) => ({ id, role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text }] })
+  const messages = [
+    { id: 'cp', role: 'user', source: { kind: 'plugin:compact', compactionId: 'old' }, content: [{ type: 'text', text: '【第 1–2 轮剧情摘要】旧卷原文' }] },
+    { id: 'old-book', role: 'user', source: { kind: 'plugin:dsh-tavern', form: 'worldbook-snapshot', trace: { turn: 2 }, worldbookSnapshot: { schemaVersion: 1 } }, content: [{ type: 'text', text: '过期世界书' }] },
+    player('p1', '旧问题'), body('a1', '旧正文<hidden>旧隐藏面板</hidden>'),
+    player('p2', '新问题'), body('a2', '新正文<hidden>新隐藏面板</hidden>'),
+    { role: 'user', source: { kind: 'plugin:dsh-compaction-basic' }, content: [{ type: 'text', text: '原生摘要指令' }] }
+  ]
+  const original = structuredClone(messages), chunks = []
+  for await (const chunk of ctx.llm.stream({ sessionId: 's', purpose: 'compaction', messages })) chunks.push(chunk)
+  assert.ok(measured.every(text => !text.includes('过期世界书')), '预算计算前过滤旧世界书')
+  assert.equal(sent.length, 1)
+  const modelText = JSON.stringify(sent[0].messages)
+  assert.ok(!modelText.includes('过期世界书') && !modelText.includes('隐藏面板'))
+  assert.ok(modelText.includes('旧正文') && !modelText.includes('新正文'))
+  assert.match(sent[0].messages.at(-1).content[0].text, /剧情压缩提示[\s\S]*第 3–4 轮/)
+  const blocks = chunks.filter(chunk => chunk.type === 'block-end').map(chunk => chunk.block.text)
+  assert.ok(blocks.includes('【第 1–2 轮剧情摘要】旧卷原文'))
+  const recent = blocks.find(text => text.startsWith('【最近 1 轮原文'))
+  assert.match(recent, /新问题[\s\S]*新正文/)
+  assert.ok(!recent.includes('隐藏面板'))
+  assert.deepEqual(messages, original)
+})
+
 test('marking a frozen, already-marked request copies it instead of throwing (#148)', async () => {
   const { markRequestHandled, requestHandledBy } = await import('../tavern-plugin/lib/domain/request-lineage.js')
   const { createStoryCompactionRequest } = await import('../tavern-plugin/lib/domain/story-compaction.js')

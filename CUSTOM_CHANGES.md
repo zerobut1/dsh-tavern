@@ -3,7 +3,7 @@
 本文件记录个人 `custom` 分支相对上游的源码改动，供日常维护和再次 rebase 时核对。
 
 - 整理日期：2026-10-18。
-- 最近同步：2026-10-19，基线为 `upstream/main` 的 `6ec5705da1735b6f8709fc1da80e0aac20f93877`，Tavern 3.0.0。
+- 最近同步：2026-10-20，基线为 `upstream/main` 的 `890923ea7e980329835596b4cbaf0f327267f624`，Tavern 3.0.0。更新范围与冲突处理见[同步记录](docs/verification/upstream-rebase-20261020.md)。
 - 2026-10-18 曾将 33 个原始提交整理为 17 个功能提交，整理前后源码文件树完全一致。后续变更单独提交；已由上游覆盖的修复按维护原则移除。
 - 提交标题和说明均使用中文；合并同一功能的初版及后续修补，按依赖关系排序。
 
@@ -39,6 +39,8 @@
 
 关闭后仍保留历史日志；这项功能不等于删除磁盘存档。运行中的任务受到关闭条件检查。
 
+2026-10-20 起接入上游可自定义顶栏，作为“子代理”快捷入口与状态、导出共存；可在顶栏设置中移除或重新添加，窄屏时随其他入口折叠到更多菜单，不再独立注册旧顶栏插槽。
+
 入口：[background-agent-sessions.js](tavern-plugin/lib/background-agent-sessions.js)、[background-session-retirement.js](tavern-plugin/lib/domain/background-session-retirement.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[subagent-catalog-sync.js](tavern-plugin/src/client/subagent-catalog-sync.js)。
 
 ### 03. 角色卡 HTML 开场兼容
@@ -68,6 +70,8 @@
 ### 07. 排除历史世界书快照
 
 前台请求、压缩材料与上下文计量排除历史轮次注入的世界书快照，保留当前轮快照，减少重复上下文。历史快照仍保存在原始会话日志中；这项修改不改变世界书条目的检索和激活策略。
+
+2026-10-20 起保留上游的分卷摘要及最旧卷合并流程，在计算压缩范围与预算前先过滤过期世界书快照；本地正文正则继续作用于压缩输入及保留的最近原文。
 
 入口：[worldbook-snapshot.js](tavern-plugin/lib/domain/worldbook-snapshot.js)、[foreground-orchestration-strategies.js](tavern-plugin/lib/domain/foreground-orchestration-strategies.js)、[story-compaction.js](tavern-plugin/lib/domain/story-compaction.js)、[tavern-token-meter.js](tavern-plugin/lib/domain/tavern-token-meter.js)。
 
@@ -103,9 +107,9 @@
 
 “正文走工具调用”支持每局覆盖全局默认，分叉继承来源对话的设置。工具结果适配和提交正文时的编辑步骤保护已采用上游实现，本地继续提供单局开关。
 
-“历史正文也走工具调用”同样支持每局选择“跟随全局／开启／关闭”，从下一次请求生效，分叉继承来源对话的当前设置。两个选项相互独立；未单独设置的旧对话继续跟随全局默认。
+“历史正文也走工具调用”同样支持每局选择“跟随全局／开启／关闭”，从下一次请求生效，分叉继承来源对话的当前设置。本局两个选项相互独立；2026-10-20 起全局界面采用上游合并后的一个开关，未单独设置的对话跟随这个统一默认值，不恢复旧的第二个全局开关。
 
-上游提供工具结果读取适配时优先复用。历史正文工具回放继续先执行隐藏文本正则，只改变发送给模型的历史形式。
+上游提供工具结果读取适配时优先复用。历史正文工具回放继续先执行隐藏文本正则，只改变发送给模型的历史形式。保留上游将历史玩家消息一并回放的能力，正文正则不处理玩家原话，本轮输入仍作为普通消息保留。
 
 入口：[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
 

@@ -187,3 +187,27 @@ test('调用前面是一条没改写的 assistant（带思维链等）时也补�
   assert.deepEqual(projected.map(message => message.role), ['system', 'assistant', 'user', 'assistant', 'tool', 'user'])
   assert.equal(projected[2].content[0].text, HISTORY_ANCHOR_TEXT)
 })
+
+test('历史玩家消息一并回放时，正文正则只过滤助手内容，本轮输入保持原样', () => {
+  const messages = [player('old-input', '<hidden>玩家原话</hidden>'), body('old-reply', '正文<hidden>隐藏面板</hidden>'), player('current', '继续')]
+  const before = structuredClone(messages)
+  const filtered = []
+  const projected = project(messages, {
+    toolName: TOOL,
+    projectText: text => { filtered.push(text); return text.replace(/<hidden>[\s\S]*?<\/hidden>/g, '') }
+  })
+  assert.deepEqual(filtered, ['正文<hidden>隐藏面板</hidden>'])
+  assert.equal(JSON.parse(projected[0].content[0].arguments).content, '<hidden>玩家原话</hidden>')
+  assert.equal(JSON.parse(projected[2].content[0].arguments).content, '正文')
+  assert.equal(projected.at(-1), messages.at(-1))
+  assert.deepEqual(messages, before)
+})
+
+test('过滤后为空的历史正文不产生空调用或孤立回执，其后消息仍正常回放', () => {
+  const messages = [body('hidden', '隐藏面板'), body('visible', '可见正文'), player('current', '继续')]
+  const projected = project(messages, { toolName: TOOL, projectText: text => text === '隐藏面板' ? '' : text })
+  assert.deepEqual(projected.map(message => message.role), ['assistant', 'tool', 'user'])
+  assert.equal(projected[0].id, 'visible')
+  assert.equal(projected[1].toolCallId, projected[0].content[0].id)
+  assert.equal(projected.at(-1), messages.at(-1))
+})

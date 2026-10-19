@@ -154,6 +154,15 @@ test('手机上最多保留三个快捷入口，导出优先，其余进 ⋮', (
   assert.deepEqual(Array.from(fold(['a', 'b'], 1)), ['b'])
 })
 
+test('自定义子代理入口参与手机折叠，更多菜单内仍可打开，并能从顶栏设置重新添加', () => {
+  const fold = vm.runInNewContext('(' + sliceFunction(client, 'tavernHeaderMobileFold') + ')', { TAVERN_HEADER_MOBILE_LIMIT: 3 })
+  assert.deepEqual(Array.from(fold(['dsh-tavern:status', 'header:export', 'header:subagents'], 3)), [])
+  assert.deepEqual(Array.from(fold(['dsh-tavern:status', 'header:export', 'header:subagents'], 1)), ['dsh-tavern:status', 'header:subagents'])
+  assert.match(client, /foldedEntries\.map\(entry => entry\.id === "header:subagents"\s*\? h\(TavernSubagentMenu/)
+  assert.match(client, /push\(\{ id: "header:subagents", label: "子代理" \}\)/)
+  assert.doesNotMatch(client, /id: "dsh-tavern-subagents", order: 85/)
+})
+
 test('手机按标题行宽折算槽位：放不下就留一格给 ⋮', () => {
   const capacity = vm.runInNewContext('(' + sliceFunction(client, 'tavernHeaderMobileCapacity') + ')', { TAVERN_HEADER_MOBILE_SLOT: 42, TAVERN_HEADER_MOBILE_LIMIT: 3 })
   // 行宽够 4 格、条目只有 3 个：全显示，上限读数就是容量 3。
