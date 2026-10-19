@@ -17,6 +17,12 @@
 
 ## 功能清单
 
+### 原生测试入口
+
+Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 解析宿主根目录，支持带空格和中文的路径。宿主补丁自身的测试按平台文件名识别，避免被提前打补丁。真实子进程验证预加载确实完成，并保留测试失败退出码。
+
+入口：[test-tavern.mjs](bin/test-tavern.mjs)、[host-session-patch-preload.mjs](tests/fixtures/host-session-patch-preload.mjs)、[test-tavern-runner.test.mjs](tests/test-tavern-runner.test.mjs)。
+
 ### QQ 私聊桥接
 
 通过本机 NapCat OneBot 11 正向 WebSocket，将白名单好友的文字私聊提交到固定的 Tavern 原生对话，沿用角色卡、预设、世界书和后台结算。按输入请求编号取得本轮正文，只发送显示投影中的文字；支持对话别名切换、持久化消息去重、串行处理和断线重连。
