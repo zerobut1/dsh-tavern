@@ -12,6 +12,8 @@ import { registerTavernHttpRoutes } from './http/routes.js'
 import { installChatAnswerBootPatch } from './domain/chat-answer-boot-patch.js'
 import { startMobileAccess } from './http/mobile-access.js'
 import { createMobileChatApi, registerMobileChatRoutes } from './http/mobile-chat.js'
+import { createConversationMessenger } from './domain/conversation-messenger.js'
+import { startQqBridge } from './qq-bridge-runtime.js'
 import { registerRequestHooks } from './hooks/request.js'
 import { createWholeReadGuard, scopeTurnHooks } from './domain/whole-read-guard.js'
 import { createChatReads } from './domain/chat-reads.js'
@@ -3495,6 +3497,16 @@ export async function apply(ctx) {
     })
     ctx.effect(() => () => serverScripts?.dispose(), 'dsh-tavern: server script runtime')
   }
+
+  ctx.effect(() => startQqBridge({ dataRoot, store: profileData, messenger: createConversationMessenger({
+    readState: sessionStateForSession,
+    readHeader: id => chatHeaderForSession(id, ['nativeCommits', 'foregroundError']),
+    readHistory: async id => { const chat = await chatForSession(id); return { chat, view: await projectFullSessionView(chat) } },
+    activity: chat => backgroundTasks.activity(chat),
+    foreground: id => { const phase = agentRegistry.get(id)?.phase?.kind; return Boolean(phase && phase !== 'idle') },
+    prompt: (request, signal) => ctx.get('sessionController').prompt(request, signal),
+    demand: id => serverScripts?.demand(id),
+  }) }), 'dsh-tavern: QQ bridge')
 
   function contentText(message) {
     if (message === null || typeof message !== 'object' || !Array.isArray(message.content)) return ''

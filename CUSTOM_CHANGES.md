@@ -17,6 +17,14 @@
 
 ## 功能清单
 
+### QQ 私聊桥接
+
+通过本机 NapCat OneBot 11 正向 WebSocket，将白名单好友的文字私聊提交到固定的 Tavern 原生对话，沿用角色卡、预设、世界书和后台结算。按输入请求编号取得本轮正文，只发送显示投影中的文字；支持对话别名切换、持久化消息去重、串行处理和断线重连。
+
+默认禁用；`bin/qq-bridge.mjs` 提供配置、只读检查、状态与手动启停，禁用状态不连接 NapCat。群聊、临时会话、自身消息及非文字输入不处理；每次发送前重新检查开关、账号和白名单。用户的 Token 和绑定保存在被 Git 忽略的数据目录。
+
+入口：[qq-bridge.md](docs/qq-bridge.md)、[qq-bridge-runtime.js](tavern-plugin/lib/qq-bridge-runtime.js)、[qq-bridge.js](tavern-plugin/lib/domain/qq-bridge.js)、[conversation-messenger.js](tavern-plugin/lib/domain/conversation-messenger.js)。
+
 以下编号沿用首次整理时的顺序，已由上游接管的项目保留说明。源码链接指向主要维护入口，不穷举生成文件。
 
 ### 01. 项目环境

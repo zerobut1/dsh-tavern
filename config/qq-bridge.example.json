@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "enabled": false,
+  "wsUrl": "ws://127.0.0.1:3001/",
+  "token": "填写 NapCat OneBot WebSocket 服务的 Access Token",
+  "botQq": "123456789",
+  "allowedUserIds": [],
+  "bindings": [
+    {
+      "name": "测试角色",
+      "sessionId": "session-00000000-0000-4000-8000-000000000000",
+      "chatId": "chat-example"
+    }
+  ]
+}

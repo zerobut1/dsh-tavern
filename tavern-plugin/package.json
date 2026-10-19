@@ -16,6 +16,7 @@
     "chevrotain": "^11.2.0",
     "marked": "16.3.0",
     "yaml": "2.9.0",
+    "ws": "8.21.3",
     "acorn": "8.15.0",
     "@deepseek-ai/dsh-agent": ">=0.2.0-rc.1 <0.3.0",
     "@deepseek-ai/dsh-skill-filesystem": ">=0.2.0-rc.1 <0.3.0",
