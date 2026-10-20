@@ -3115,7 +3115,7 @@ window.__ModuleLoader__.load({
 		 * This uses a modal <dialog> instead, so it behaves identically on every client.
 		 *
 		 * Resolves with the trimmed value, or null when cancelled.
-		 * options: { title, description, initialValue, placeholder, maxLength, confirmLabel, onSubmit }
+		 * options: { title, description, initialValue, initialError, placeholder, maxLength, confirmLabel, onSubmit }
 		 * When onSubmit is supplied the dialog stays open showing busy/error state until
 		 * it settles, which preserves the previous "save, then close" semantics.
 		 */
@@ -3156,7 +3156,8 @@ window.__ModuleLoader__.load({
 				const errorLine = document.createElement("div");
 				errorLine.className = "dsh-tavern-prompt-error";
 				errorLine.setAttribute("role", "alert");
-				errorLine.hidden = true;
+				errorLine.textContent = String(opts.initialError || "");
+				errorLine.hidden = !opts.initialError;
 				panel.append(errorLine);
 
 				const actions = document.createElement("div");
@@ -23848,7 +23849,7 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
             if (!state || !state.available) return null;
             const busy = props.running || activity.busy || activity.phase === "pending" || state.status === "running";
             async function open() {
-                await askTavernText({ title: "后台指令", description: "输入给后台 Agent 的变量更新指令。", initialValue: state.status === "failed" ? state.instruction || "" : "", allowEmpty: false, maxLength: 4000, confirmLabel: "执行指令",
+                await askTavernText({ title: "后台指令", description: "输入给后台 Agent 的变量更新指令。", initialValue: state.status === "failed" ? state.instruction || "" : "", initialError: state.status === "failed" ? state.error : "", allowEmpty: false, maxLength: 4000, confirmLabel: "执行指令",
                     onSubmit: async instruction => {
                         const result = await rpc("startBackgroundCommand", { instruction }, props.sessionId);
                         setState({ ...result, available: true, instruction });
@@ -23858,9 +23859,8 @@ function createPlayInteractionPanels({ interactions, useCandidatePanel, useCandi
             }
             const count = state.receipt && state.receipt.changes ? state.receipt.changes.length : 0;
             return h(React.Fragment, null,
-                h("button", { type: "button", className: "dsh-tavern-choice-trigger", disabled: busy, onClick: () => void open(), title: "向后台 Agent 发送变量更新指令" }, state.status === "running" ? "后台指令执行中…" : "后台指令"),
-                state.status === "failed" ? h("span", { className: "dsh-card-error", role: "alert" }, state.error)
-                    : state.status === "done" ? h("span", { className: "dsh-tavern-settings-desc", role: "status" }, count ? "后台指令已完成，更新 " + count + " 项变量" : "后台指令已完成，变量无变化") : null);
+                h("button", { type: "button", className: "dsh-tavern-choice-trigger", disabled: busy, onClick: () => void open(), title: state.status === "failed" ? "上次执行失败，点击查看详情" : "向后台 Agent 发送变量更新指令" }, state.status === "running" ? "后台指令执行中…" : "后台指令"),
+                state.status === "done" ? h("span", { className: "dsh-tavern-settings-desc", role: "status" }, count ? "后台指令已完成，更新 " + count + " 项变量" : "后台指令已完成，变量无变化") : null);
         }
 		function CandidateDockActions(props) {
 			const address = props.sessions && props.sessions.subagentAddress(props.sessionId);

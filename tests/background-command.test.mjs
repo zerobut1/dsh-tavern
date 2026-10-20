@@ -11,10 +11,10 @@ import { createBackgroundTaskCoordinator } from '../tavern-plugin/lib/domain/bac
 test('输入区按钮打开指令小窗口，并将输入交给后台接口', async () => {
   const source = await readFile(new URL('../tavern-plugin/src/client/features/play-controls.js', import.meta.url), 'utf8')
   const component = source.slice(source.indexOf('function TavernBackgroundCommandAction('), source.indexOf('function CandidateDockActions('))
-  let dialog, saved, invalidated = false
+  let dialog, saved, invalidated = false, currentState = { status: 'idle', available: true }
   const render = vm.runInNewContext('(' + component.trim() + ')', {
     React: { Fragment: 'fragment', createElement: (type, props, ...children) => ({ type, props, children }),
-      useState: () => [{ status: 'idle', available: true }, () => {}], useEffect: () => {} },
+      useState: () => [currentState, () => {}], useEffect: () => {} },
     useTavernCoordination: () => ({ view: { activity: { busy: false } } }), describeTavernActivity: value => value,
     askTavernText: async input => { dialog = input },
     rpc: async (method, args, sessionId) => { saved = { method, args, sessionId }; return { status: 'running' } },
@@ -32,6 +32,12 @@ test('输入区按钮打开指令小窗口，并将输入交给后台接口', as
   assert.equal(saved.args.instruction, '生成奖池')
   assert.equal(saved.sessionId, 's')
   assert.equal(invalidated, true)
+  currentState = { status: 'failed', available: true, instruction: '原指令', error: '变量更新失败详情' }
+  const failed = render({ sessionId: 's', running: false })
+  assert.equal(failed.children[1], null, '输入区不展示错误详情')
+  failed.children[0].props.onClick()
+  assert.equal(dialog.initialError, currentState.error, '错误详情只在指令弹窗内显示')
+  assert.equal(dialog.initialValue, currentState.instruction)
 })
 
 function fixture(run) {

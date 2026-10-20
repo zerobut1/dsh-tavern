@@ -93,7 +93,7 @@
 		 * This uses a modal <dialog> instead, so it behaves identically on every client.
 		 *
 		 * Resolves with the trimmed value, or null when cancelled.
-		 * options: { title, description, initialValue, placeholder, maxLength, confirmLabel, onSubmit }
+		 * options: { title, description, initialValue, initialError, placeholder, maxLength, confirmLabel, onSubmit }
 		 * When onSubmit is supplied the dialog stays open showing busy/error state until
 		 * it settles, which preserves the previous "save, then close" semantics.
 		 */
@@ -134,7 +134,8 @@
 				const errorLine = document.createElement("div");
 				errorLine.className = "dsh-tavern-prompt-error";
 				errorLine.setAttribute("role", "alert");
-				errorLine.hidden = true;
+				errorLine.textContent = String(opts.initialError || "");
+				errorLine.hidden = !opts.initialError;
 				panel.append(errorLine);
 
 				const actions = document.createElement("div");
