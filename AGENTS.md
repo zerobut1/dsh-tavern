@@ -41,6 +41,14 @@ curl -s https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@$b/dsh-tavern-runtime.
 测试已有几千条，全量跑一次约 3 分钟。除非做版本发布，否则不要跑全量 `node bin/test-tavern.mjs`；只跑与改动相关的测试文件：
 `node bin/test-tavern.mjs tests/<相关>.test.mjs [更多文件…]`
 
+### 自定义功能的最小测试要求
+
+所有自定义功能在新增或维护时，只添加最低限度的单元测试，覆盖关键行为和必要边界。优先复用或调整已有用例，不重复测试相同逻辑，不为实现细节堆叠测试。
+
+默认只运行相关单元测试；除非用户明确要求，不主动添加、扩展或开展集成测试、端到端测试、浏览器测试及完整回归流程，不为验证启动真实 DSH、NapCat 或模型请求。
+
+下面约定的上游同步后自定义单元测试检查仍须执行。
+
 ### custom 分支同步上游
 
 每次 rebase `upstream/main` 后，必须运行 `pnpm test:custom:unit`（或 `node bin/test-custom-unit.mjs`），全部通过后才报告同步完成。这个入口只运行自定义功能相关的单元测试，不启动浏览器、DSH 服务、NapCat 或真实模型请求，不要求端到端回归或全量测试。
