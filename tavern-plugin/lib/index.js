@@ -84,6 +84,7 @@ import { createSessionInventory } from './domain/session-inventory.js'
 import { createSessionViewSync } from './domain/session-view-sync.js'
 import { createCharacterDesignPublisher } from './domain/character-design-worldbook.js'
 import { createManualCharacterDesign } from './domain/manual-character-design.js'
+import { createBackgroundCommand } from './domain/background-command.js'
 import { prepareTemplateHistory, synchronizeTemplateHistory } from './domain/template-history.js'
 import { createServerTemplateSync } from './domain/server-template-sync.js'
 import { createServerTemplateRuntime } from './domain/server-template-runtime.js'
@@ -2249,6 +2250,21 @@ export async function apply(ctx) {
     diagnostics: mvuDiagnostics,
     characterDesign: characterDesignDocuments
   })
+  const backgroundCommand = createBackgroundCommand({
+    store: { chatForSession, updateChat }, selection: backgroundModelSelection,
+    beginTask: async (chat, sessionId) => {
+      if (agentRegistry.get(sessionId)?.phase?.kind === 'running' || chat.regenInProgress) throw new Error('前台正在生成，请完成后再发送后台指令。')
+      return backgroundTasks.begin(chat, 'command')
+    },
+    settle: input => mvuSettlement.settleVariables(input),
+    prepare: async (chat, target) => {
+      if (!agentRegistry.get(chat.sessionId)?.session) await agentRegistry.resume({ resumeSessionId: chat.sessionId })
+      const card = await readChatCard(chat)
+      return { storyText: projectAgentMessageText(chat.messages[target.messageId], { charName: card?.name, macroState: chat.macroState }),
+        updateRules: await mvuUpdateRules(chat, card), guides: chat.guides || [],
+        charName: card?.name, macroState: chat.macroState, turn: settlementTurn(chat) }
+    }
+  })
   ctx.effect(() => () => backgroundAgentRunner.dispose(), 'dsh-tavern: dispose resident background agents')
   // Pictures Tavern drew before image plugins took over: shown, exported, listed and deleted, never drawn.
   const sceneIllustrations = createSceneIllustrations({
@@ -3000,7 +3016,7 @@ export async function apply(ctx) {
   }, 'dsh-tavern: reconcile deferred MVU settlement')
   const { stopBackground, retrySettlement, pullBackgroundCycle } = createSettlementControls({
     chatForSession, readOpeningWindow, projectOpeningWindow, view, readChatCard, backgroundTasks, worldbookPrefilter, storyTimeline,
-    patchChat, writeChat, queueSettlement, cancelSettlement, mvuSettlementEngine, pluginApi, backgroundAgentRunner
+    patchChat, writeChat, queueSettlement, cancelSettlement, mvuSettlementEngine, pluginApi, backgroundAgentRunner, backgroundCommand
   })
   // ---------- 卡片工作台：剧本素材与新卡创建 ----------
   async function sourceWindowOf(chat) {
@@ -3126,7 +3142,7 @@ export async function apply(ctx) {
       stageDirectorStream.cancel(sessionId, turn)
       if (turn === undefined) return directorJobs.cancel(sessionId, { wait: false })
     },
-    waitBackground: chatId => Promise.all([settlementJobs.pending(chatId), settlementRun.pluginTaskJob(chatId)]),
+    waitBackground: chatId => Promise.all([settlementJobs.pending(chatId), settlementRun.pluginTaskJob(chatId), backgroundCommand.wait(chatId)]),
     prefilterWorldbook: chatId => worldbookPrefilter.start(chatId),
     cancelPrefilter: chatId => worldbookPrefilter.cancel(chatId),
     waitReconcile: storyReconciliation.waitReconcile,
@@ -3348,7 +3364,7 @@ export async function apply(ctx) {
   })
 
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
-  const rpcDeps = { tavernExtensionSettings, profileData, readSessionMap, sessionSignals, listGameSubagents, closeGameSubagents, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
+  const rpcDeps = { backgroundCommand, tavernExtensionSettings, profileData, readSessionMap, sessionSignals, listGameSubagents, closeGameSubagents, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
     applicationUpdater, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog,
     backgroundConfigForSession, bindScript, bodyEditor, callModel, candidateGenerator, candidateTasks, polishRecords, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardTaskPrompts, castAssets,

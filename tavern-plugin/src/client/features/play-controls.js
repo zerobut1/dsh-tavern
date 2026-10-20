@@ -1002,6 +1002,44 @@
 			);
 		}
 
+        function TavernBackgroundCommandAction(props) {
+            const h = React.createElement;
+            const [state, setState] = React.useState(null);
+            const coordination = useTavernCoordination(props.sessionId);
+            const activity = describeTavernActivity(coordination.view && coordination.view.activity);
+            React.useEffect(function () {
+                let disposed = false, timer;
+                async function load() {
+                    try {
+                        const next = await rpc("getBackgroundCommand", {}, props.sessionId);
+                        if (disposed) return;
+                        setState(next);
+                        if (next.status === "running") timer = setTimeout(load, 1000);
+                        else if (state && state.status === "running") liveTavernView.invalidate(props.sessionId);
+                    } catch (error) {
+                        if (!disposed) setState({ available: true, status: "failed", error: String(error.message || error) });
+                    }
+                }
+                void load();
+                return function () { disposed = true; clearTimeout(timer); };
+            }, [props.sessionId, state && state.status, props.running, activity.busy, coordination.view && coordination.view.projectionRevision]);
+            if (!state || !state.available) return null;
+            const busy = props.running || activity.busy || activity.phase === "pending" || state.status === "running";
+            async function open() {
+                await askTavernText({ title: "后台指令", description: "直接让后台 Agent 更新当前变量，例如生成商城物品或抽奖奖池。请明确数量、价格、概率等要求。", placeholder: "例如：生成 10 个抽奖奖项，概率总和为 100%，写入当前奖池。", initialValue: state.status === "failed" ? state.instruction || "" : "", allowEmpty: false, maxLength: 4000, confirmLabel: "执行指令",
+                    onSubmit: async instruction => {
+                        const result = await rpc("startBackgroundCommand", { instruction }, props.sessionId);
+                        setState({ ...result, available: true, instruction });
+                        liveTavernView.invalidate(props.sessionId);
+                    }
+                });
+            }
+            const count = state.receipt && state.receipt.changes ? state.receipt.changes.length : 0;
+            return h(React.Fragment, null,
+                h("button", { type: "button", className: "dsh-tavern-choice-trigger", disabled: busy, onClick: () => void open(), title: "向后台 Agent 发送变量更新指令" }, state.status === "running" ? "后台指令执行中…" : "后台指令"),
+                state.status === "failed" ? h("span", { className: "dsh-card-error", role: "alert" }, state.error)
+                    : state.status === "done" ? h("span", { className: "dsh-tavern-settings-desc", role: "status" }, count ? "后台指令已完成，更新 " + count + " 项变量" : "后台指令已完成，变量无变化") : null);
+        }
 		function CandidateDockActions(props) {
 			const address = props.sessions && props.sessions.subagentAddress(props.sessionId);
 			const ownerSessionId = address ? address.parentSessionId : props.sessionId;
@@ -1016,6 +1054,7 @@
 				h(TavernStopBackgroundAction, { sessionId: ownerSessionId })) : null;
 			return h("div", { className: "dsh-tavern-dock-actions" },
 				isPlayMode(sessionMode) && latestMessageId ? React.createElement(CandidateAction, Object.assign({}, props, { messageId: latestMessageId })) : null,
+                isPlayMode(sessionMode) ? h(TavernBackgroundCommandAction, { key: props.sessionId, sessionId: props.sessionId, running: running }) : null,
 				isPlayMode(sessionMode) && live.view && !live.view.canClearIncompleteReply ? React.createElement(TavernPluginComposerActions, { sessionId: props.sessionId, turn: imageTurn, running: running }) : null,
 				isPlayMode(sessionMode) ? React.createElement(TavernMoreActions, props) : React.createElement(TavernCompactionAction, props),
                 live.view && live.view.contextCompaction && live.view.contextCompaction.operation && live.view.contextCompaction.operation.status === "running" ? h("span", { role: "status", className: "dsh-tavern-settings-desc" }, "正在压缩前后台上下文…")

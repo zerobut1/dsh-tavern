@@ -14,8 +14,16 @@ export function createPlayHandlers(deps) {
     retryStyleReference, rollbackTurn, runtimeGeneration, runtimePrompt, sessionActivity, sessionOperation,
     sessionStateForSession, sessionStore, sessionView, sessionViews, setPlayerName, stopBackground, str,
     templateHistoryFrom, undoRollbackTurn, updateChat, view, withCompactionSession,
-    listGameSubagents, closeGameSubagents } = deps
+    listGameSubagents, closeGameSubagents, backgroundCommand, chatHeaderForSession } = deps
   return {
+    async startBackgroundCommand(args) {
+      return backgroundCommand.start(args || {})
+    },
+    async getBackgroundCommand(args) {
+      const chat = await chatHeaderForSession(args && args.sessionId, ['id', 'mvu', 'backgroundCommandTask'])
+      if (!chat) throw new Error('对话不存在')
+      return backgroundCommand.project(chat)
+    },
     async listGameSubagents(args) {
       return await listGameSubagents(args && args.sessionId)
     },

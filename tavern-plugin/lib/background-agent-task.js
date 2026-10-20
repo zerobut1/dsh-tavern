@@ -36,7 +36,7 @@ function backgroundPrompt(messages, turnContext, task, taskProtocol, input = {})
       : (message && message.role === 'assistant' ? '正文' : '用户')
     return '[' + role + ']\n' + messageText(message)
   }).filter(function (text) { return text.trim() !== '' }).join('\n\n')
-  const taskName = task === 'stage-director' ? '舞台导演' : task === 'worldbook-filter' ? '世界书筛选' : task === 'style-reference' ? '文风联想' : task === 'settlement' ? '状态结算' : task === 'phone' ? '手机私聊' : task === 'character-design' ? '人物设计' : task === 'ledger' ? '台账整理' : task === 'plugin' ? '插件任务' : '候选生成'
+  const taskName = task === 'command' ? '玩家后台指令' : task === 'stage-director' ? '舞台导演' : task === 'worldbook-filter' ? '世界书筛选' : task === 'style-reference' ? '文风联想' : task === 'settlement' ? '状态结算' : task === 'phone' ? '手机私聊' : task === 'character-design' ? '人物设计' : task === 'ledger' ? '台账整理' : task === 'plugin' ? '插件任务' : '候选生成'
   sections.push('【最近剧情与本次任务】\n任务类型：' + taskName + '\n' + recent)
   const protocol = str(taskProtocol).trim()
   if (protocol !== '') sections.push('【任务要求】\n' + protocol)
@@ -82,7 +82,7 @@ export function maximumBackgroundTokens(selection) {
 }
 
 export function traceError(error, traceSessionId, task) {
-  const fallback = task === 'settlement' ? '后台状态结算失败' : task === 'phone' ? '手机私聊回复失败' : task === 'plugin' ? '插件后台任务失败' : '后台候选生成失败'
+  const fallback = task === 'command' ? '后台指令执行失败' : task === 'settlement' ? '后台状态结算失败' : task === 'phone' ? '手机私聊回复失败' : task === 'plugin' ? '插件后台任务失败' : '后台候选生成失败'
   const wrapped = new Error(str(error && error.message || error) || fallback, { cause: error })
   wrapped.traceSessionId = traceSessionId
   return wrapped

@@ -706,6 +706,7 @@ window.__ModuleLoader__.load({
 			let label = "生成候选项";
 			let blockReason = "";
 			if (busy && role === "candidate") { label = "生成中…"; blockReason = "正在生成候选项，请稍候…"; }
+			else if (busy && role === "command") { label = "后台指令执行中…"; blockReason = "后台指令执行中，请稍候…"; }
 			else if (busy) { label = "后台结算中…"; blockReason = "后台结算中，请稍候…"; }
 			return { phase: String(activity.phase || "idle"), busy: busy, role: role, label: label, blockReason: blockReason };
 		}

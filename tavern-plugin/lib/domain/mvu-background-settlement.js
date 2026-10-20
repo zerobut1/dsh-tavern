@@ -234,7 +234,7 @@ function stripHtmlFences(value) {
 }
 
 /** Extract only confirmed story prose from one final foreground response. */
-export function extractMvuStoryText(value) {
+export function extractMvuStoryText(value, { allowEmpty = false } = {}) {
   let text = str(value)
   text = stripTaggedBlock(text, 'UpdateVariable')
   text = stripTaggedBlock(text, 'visual_cards')
@@ -242,7 +242,7 @@ export function extractMvuStoryText(value) {
   text = text.replace(/<StatusPlaceHolderImpl\s*\/?>/gi, '')
   text = text.replace(/<StatusPlaceholder\s*\/?>/gi, '')
   text = text.replace(/(?:[ \t]*\r?\n){3,}/g, '\n\n').trim()
-  if (text === '') throw new Error('本轮最终回复剔除控制协议后没有可用于变量结算的剧情正文')
+  if (text === '' && !allowEmpty) throw new Error('本轮最终回复剔除控制协议后没有可用于变量结算的剧情正文')
   return text
 }
 
@@ -423,7 +423,8 @@ export function collectMvuHelperContext(messages, messageId) {
 export function createMvuBackgroundTaskFrame(input = {}) {
   const currentVariables = clone(object(input.currentVariables))
   const variableSchema = clone(object(input.variableSchema || currentVariables.schema))
-  const storyText = extractMvuStoryText(input.storyText)
+  const instruction = str(input.instruction).trim()
+  const storyText = extractMvuStoryText(input.storyText, { allowEmpty: Boolean(instruction) })
   const messageId = Number(input.messageId)
   const swipeId = Number(input.swipeId)
   if (!Number.isInteger(messageId) || messageId < 0) throw new Error('变量结算 messageId 无效')
@@ -448,7 +449,8 @@ export function createMvuBackgroundTaskFrame(input = {}) {
       helperContext: Array.isArray(input.helperContext) ? input.helperContext.map(str).filter(Boolean) : [],
       guides: Array.isArray(input.guides) ? input.guides.map(item => str(item?.text ?? item).trim()).filter(Boolean) : [],
       guidance: str(input.guidance).trim(),
-      updateOnlyFromStory: true
+      instruction,
+      updateOnlyFromStory: !instruction
     },
     outputContract: { tool: MVU_SUBMIT_UPDATE_TOOL_NAME, required: true, singleCommit: true, maxToolCalls: 3 }
   })
@@ -462,13 +464,14 @@ export function projectMvuBackgroundRequest(frame) {
   const rules = object(frame.taskRules)
   const tasks = normalizeBackgroundTasks(rules.backgroundTasks)
   const updateRules = Array.isArray(rules.updateRules) ? rules.updateRules : []
+  const manual = Boolean(rules.instruction)
   return {
     messages: [{
       id: frame.frameId + ':story',
-      role: 'assistant',
+      role: manual ? 'user' : 'assistant',
       regexPlacement: 2,
-      content: [{ type: 'text', text: str(output.storyText) }],
-      source: { kind: 'plugin:dsh-tavern', form: 'mvu-final-story' }
+      content: [{ type: 'text', text: manual ? str(rules.instruction) : str(output.storyText) }],
+      source: { kind: 'plugin:dsh-tavern', form: manual ? 'mvu-player-command' : 'mvu-final-story' }
     }],
     // Stable schema and rules precede the per-turn snapshot so the shared background prefix stays cacheable.
     turnContext: [
@@ -477,6 +480,7 @@ export function projectMvuBackgroundRequest(frame) {
       ...(updateRules.length === 0 ? [] : ['【人物卡变量更新规则】', updateRules.join('\n\n')]),
       '【当前变量快照】',
       JSON.stringify(promptVariables(state.currentVariables)),
+      ...(manual ? ['【最近正文（只作背景，不重新结算）】', str(output.storyText)] : []),
       ...(rules.helperContext?.length ? ['【本轮人物卡 Helper 交接】',
         '以下是本轮正文之前人物卡脚本提供的数据与要求。已确认的建角设定和明确的变量初始化要求可用于本轮初始化；其余剧情意图、候选行动仍须以正文已经发生的事实为准。遵守变量只读规则，不重算脚本负责的派生字段。',
         ...rules.helperContext] : []),
@@ -488,13 +492,17 @@ export function projectMvuBackgroundRequest(frame) {
       '若本轮出现值得长期保留的重要人物，可先调用 skill 加载 character-design，再按 Skill 读取或保存人物档案。人物设计独立保存，不属于 MVU operations。'] : [])
     ].join('\n'),
     system: [
-      '只根据【正文】中已经确认发生的事实结算变量，不得读取或推断玩家意图。',
-      '不得根据旧轮剧情、隐藏思考、候选项或未发生事件更新变量。',
+      ...(manual ? [
+        '本次是玩家明确发给后台 Agent 的变量更新指令，不是自动剧情结算。直接按本条用户指令调用 mvu_submit_update 更新当前变量。',
+        '玩家本次明确要求修改的范围视为手动授权，包括规则中仅允许玩家手动设置的商城或抽奖内容。遵守真实变量结构和脚本约束，不擅自修改永久开关或派生字段。',
+        '仅执行本次要求；不续写剧情，不重新结算最近正文，不追补无关历史变化。信息不足时不猜测关键金额或权限，返回可理解的原因。'
+      ] : ['只根据【正文】中已经确认发生的事实结算变量，不得读取或推断玩家意图。',
+        '不得根据旧轮剧情、隐藏思考、候选项或未发生事件更新变量。']),
       '变量路径以【变量结构】和【当前变量快照】的实际层级为准；人物卡文字规则中的分组名称不代表嵌套关系。提交前逐级核对路径，重试时修正失败项，不得仅删掉失败项来报告成功。',
       ...(tasks.characterDesign ? ['若确实需要人物设计，在当前后台 Agent 内先加载 character-design 并调用人物档案工具；无需也不得创建另一个 Agent。完成后继续本轮结算。'] : []),
       tasks.posture ? '在同一次回复中同时调用 posture_submit 和 mvu_submit_update，分别提交本轮结束时可见的人物姿势与变量变化；两者互不依赖，无需等待前一个工具返回。不得在回复正文输出 JSON。' : '本轮姿势结算已关闭，直接提交变量，不生成姿势。',
       '本轮必须调用 mvu_submit_update；姿势和变量分别以各自工具返回结果为准，只补交未完成项。',
-      '数值不确定时，合理即可，不要求必须精确。'
+      manual ? '仅在玩家授权的范围内生成数值；没有授权自行决定的关键金额或权限不得猜测。' : '数值不确定时，合理即可，不要求必须精确。'
     ].join('\n'),
     tools: [...(tasks.posture ? [POSTURE_SUBMIT_TOOL] : []), ...(tasks.characterDesign ? [CHARACTER_DESIGN_READ_TOOL, CHARACTER_DESIGN_SAVE_TOOL] : []), MVU_SUBMIT_UPDATE_TOOL]
   }
@@ -684,7 +692,7 @@ export function createMvuSettlementModule(options = {}) {
     let run = {}
     try {
       run = await options.model.run({
-        task: 'settlement', backgroundTasks: tasks, persistent: true, persistentSessionId: traceSessionId, rewindTo: -1,
+        task: input.instruction ? 'command' : 'settlement', backgroundTasks: tasks, persistent: true, persistentSessionId: traceSessionId, rewindTo: -1,
         onPersistentSessionReady: input.onPersistentSessionReady,
         selection: input.selection, messages: request.messages, turnContext: request.turnContext,
         system: [str(input.system).trim(), request.system].filter(Boolean).join('\n\n'),
