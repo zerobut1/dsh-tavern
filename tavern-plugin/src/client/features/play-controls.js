@@ -1026,7 +1026,7 @@
             if (!state || !state.available) return null;
             const busy = props.running || activity.busy || activity.phase === "pending" || state.status === "running";
             async function open() {
-                await askTavernText({ title: "后台指令", description: "直接让后台 Agent 更新当前变量，例如生成商城物品或抽奖奖池。请明确数量、价格、概率等要求。", placeholder: "例如：生成 10 个抽奖奖项，概率总和为 100%，写入当前奖池。", initialValue: state.status === "failed" ? state.instruction || "" : "", allowEmpty: false, maxLength: 4000, confirmLabel: "执行指令",
+                await askTavernText({ title: "后台指令", description: "输入给后台 Agent 的变量更新指令。", initialValue: state.status === "failed" ? state.instruction || "" : "", allowEmpty: false, maxLength: 4000, confirmLabel: "执行指令",
                     onSubmit: async instruction => {
                         const result = await rpc("startBackgroundCommand", { instruction }, props.sessionId);
                         setState({ ...result, available: true, instruction });
