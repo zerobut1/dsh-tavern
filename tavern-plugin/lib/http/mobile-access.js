@@ -21,12 +21,13 @@ export async function startMobileAccess(ctx) {
   const { createPocketProxy, DEFAULT_INJECT, classifyHost } = await import(new URL('lib/proxy.mjs', root))
   const connection = ctx.get('connection')
   const privatePin = randomBytes(32).toString('hex')
+  const upstreamHost = webServer.host || '127.0.0.1'
   const proxy = await createPocketProxy({
-    host, port, upstream: { host: '127.0.0.1', port: webServer.port },
+    host, port, upstream: { host: upstreamHost, port: webServer.port },
     // Reject public TCP peers; only this computer and private-network peers use the listener.
     auth: { sessionKey: privatePin, getToken: () => privatePin, isProtected: value => classifyHost(value) === 'public' },
     launchToken: () => {
-      const url = connection?.authenticatedUrl?.(`http://127.0.0.1:${webServer.port}/`)
+      const url = connection?.authenticatedUrl?.(`http://${upstreamHost}:${webServer.port}/`)
       return url ? new URL(url).searchParams.get('token') || '' : ''
     },
     injectHtml: DEFAULT_INJECT + (existsSync(new URL('../mobile-assets/index.html', import.meta.url))

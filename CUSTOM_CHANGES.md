@@ -17,6 +17,14 @@
 
 ## 功能清单
 
+### 局域网访问电脑端界面
+
+`pnpm run lan:tavern [本机IPv4]` 保存监听地址，后续直接执行 `pnpm run start:tavern`；配置命令本身不启动服务。默认保持回环监听，开启后绑定具体网卡，兼容 DSH 0.2.1 拒绝通配地址的约束。支持临时环境变量覆盖及恢复仅本机访问。
+
+启动、就绪检测、状态、停止和重启使用实际地址，PID 文件保留运行时地址和端口，旧记录兼容回环地址。打印的完整访问链接保留 token 和实际端口。局域网普通 HTTP 接口复用 DSH 的鉴权与主机检查，保留独立 capability 和公开静态资源的既有访问方式；手机代理跟随实际上游地址，手机发送与存档救援支持缺少 `crypto.randomUUID` 的 HTTP 环境。
+
+入口：[局域网使用说明](docs/lan-access.md)、[service-network.mjs](bin/service-network.mjs)、[service-lifecycle.mjs](bin/service-lifecycle.mjs)、[routes.js](tavern-plugin/lib/http/routes.js)。仅保留单元测试，已加入 `test:custom:unit`，不启动服务或浏览器。
+
 ### 原生测试入口
 
 Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 解析宿主根目录，支持带空格和中文的路径。宿主补丁自身的测试按平台文件名识别，避免被提前打补丁。真实子进程验证预加载确实完成，并保留测试失败退出码。

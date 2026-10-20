@@ -805,6 +805,7 @@ window.__ModuleLoader__.load({
 // @include-domain tavern-helper-regex-api.js
 // @include-domain response-classification.js
 // @include-domain chat-import-batch.js
+// @include-domain browser-request-id.js
 // @include refusal-notice.js
 // @include runtime/frame-document.js
 

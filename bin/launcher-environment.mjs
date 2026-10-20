@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveDshCliEntry, resolveNpmCliEntry } from './plugin-dependencies.mjs'
+import { resolveServiceBindHost } from './service-network.mjs'
 
 // Shared installation paths and process invocation; no install/start/update effects on import.
 export const INSTALL_HOSTS = new Set(['cli', 'desktop', 'android'])
@@ -21,6 +22,9 @@ export const LEGACY_DSH_ROOT = process.env.DSH_TAVERN_LEGACY_DSH_HOME || process
 export const DSH_ROOT = path.resolve(RUNTIME_HOST === 'cli'
   ? (process.env.DSH_TAVERN_CLI_HOME || (installation.host === 'cli' && installation.dshHome) || path.join(os.homedir(), '.dsh-tavern'))
   : (process.env.DSH_HOME || path.join(os.homedir(), '.dsh')))
+export const NETWORK_FILE = path.join(DSH_ROOT, 'tavern-network.json')
+// Resolve lazily so an offline/changed network cannot prevent stopping an owned process.
+export function configuredServiceHost() { return resolveServiceBindHost({ file: NETWORK_FILE }) }
 // All new testing installations own a separate tavern profile.
 export function installedProfile() { return 'tavern' }
 export const PROFILE = installedProfile(RUNTIME_HOST, DSH_ROOT)

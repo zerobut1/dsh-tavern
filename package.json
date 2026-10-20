@@ -14,6 +14,7 @@
     "stop:tavern": "node ./bin/dsh-tavern.mjs stop",
     "restart:tavern": "node ./bin/dsh-tavern.mjs restart",
     "status:tavern": "node ./bin/dsh-tavern.mjs status",
+    "lan:tavern": "node ./bin/tavern-network.mjs",
     "test": "node bin/test-tavern.mjs",
     "test:custom:unit": "node bin/test-custom-unit.mjs",
     "test:play": "node testsets/test-play.mjs",

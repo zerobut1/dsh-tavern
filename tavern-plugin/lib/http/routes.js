@@ -52,13 +52,13 @@ export function registerTavernHttpRoutes({
     ctx.effect(() => webServer.register({
       kind: 'prefix',
       path: '/api/dsh-tavern',
-      handler: handleTavernRequest
+      handler: (req, res) => handleTavernRequest(req, res, true)
     }), 'dsh-tavern: web route')
   }
   // In-process callers (the server script runtime) share these exact routes.
   exposeHandler?.(handleTavernRequest)
 
-  async function handleTavernRequest(req, res) {
+  async function handleTavernRequest(req, res, fromWeb = false) {
       {
         const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname)
         const cachedAssetMatch = /^\/api\/dsh-tavern\/remote-assets\/([0-9a-f]{64})(?:\/[^/]*)?$/i.exec(pathname)
@@ -69,6 +69,22 @@ export function registerTavernHttpRoutes({
         const readsClientAsset = req.method === 'GET' && pathname.startsWith(TAVERN_CLIENT_ASSET_PREFIX)
         const readsPluginAsset = (req.method === 'GET' || req.method === 'HEAD') && pathname.startsWith(PLUGIN_ASSET_PREFIX)
         const origin = req.headers.origin
+        const boundOrigin = webServer?.host && webServer?.port
+          ? `${webServer.protocol || 'http:'}//${webServer.host}:${webServer.port}` : ''
+        const sameBoundOrigin = origin === boundOrigin &&
+          (origin === 'http://' + req.headers.host || origin === 'https://' + req.headers.host)
+        const publicAsset = (req.method === 'GET' && cachedAssetMatch) || readsStaticAsset || readsOfficialMvu || readsFullTemplate || readsRuntimeAsset || readsClientAsset || readsPluginAsset
+        const capabilityRoute = req.method === 'GET' && ['/api/dsh-tavern/session-resource', '/api/dsh-tavern/helper-history'].includes(pathname)
+        // On a network listener the ordinary API carries the same browser cookie
+        // and Host/Origin policy as DSH. Internal calls and capability/static assets
+        // retain their existing paths (card sandbox frames have opaque origins).
+        if (fromWeb && webServer?.host && !/^(?:127\.|::1$)/.test(webServer.host) && !publicAsset && !capabilityRoute) {
+          const connection = ctx.get('connection')
+          const rejection = typeof connection?.requestRejection === 'function' ? connection.requestRejection(req) : 503
+          if (rejection !== undefined) {
+            res.writeHead(rejection); res.end(rejection === 401 ? 'unauthorized' : 'forbidden'); return
+          }
+        }
         if (pathname === '/api/dsh-tavern/session-resource' && req.method === 'GET') {
           const headers = {'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, max-age=600',
             'Access-Control-Allow-Origin':'*','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}
@@ -109,13 +125,13 @@ export function registerTavernHttpRoutes({
           return
         }
         const readsCachedAsset = req.method === 'GET' && cachedAssetMatch
-        const localOrOpaqueOrigin = origin === undefined || origin === '' || origin === 'null' || /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)
+        const localOrOpaqueOrigin = sameBoundOrigin || origin === undefined || origin === '' || origin === 'null' || /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)
         if (readsStaticAsset && !localOrOpaqueOrigin) {
           res.writeHead(403)
           res.end('forbidden')
           return
         }
-        if (!readsCachedAsset && !readsStaticAsset && !readsOfficialMvu && !readsFullTemplate && !readsRuntimeAsset && !readsClientAsset && !readsPluginAsset && !sceneSameOrigin && typeof origin === 'string' && origin !== '' && !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
+        if (!readsCachedAsset && !readsStaticAsset && !readsOfficialMvu && !readsFullTemplate && !readsRuntimeAsset && !readsClientAsset && !readsPluginAsset && !sceneSameOrigin && !sameBoundOrigin && typeof origin === 'string' && origin !== '' && !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
           res.writeHead(403)
           res.end('forbidden')
           return

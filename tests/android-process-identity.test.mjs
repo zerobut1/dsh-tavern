@@ -14,7 +14,8 @@ function sandbox(identity, portOpen = false, host = 'android') {
   let removed = 0, signals = 0
   const record = { pid: 27035, source: '/tavern', profile: 'tavern' }
   const context = { process: { platform: 'linux', kill(_pid, signal) { if (signal) signals++; denied() } },
-    RUNTIME_HOST: host, SOURCE_ROOT: '/tavern', PROFILE: 'tavern', CLI_PORT: 3088,
+    RUNTIME_HOST: host, SOURCE_ROOT: '/tavern', PROFILE: 'tavern', CLI_PORT: 3088, CLI_HOST: '127.0.0.1',
+    serviceBindHost: value => value, configuredServiceHost: () => '127.0.0.1', fetch() {},
     PID_FILE: '/root/.dsh-tavern/logs/tavern.pid.json',
     readPidRecord: () => record, removePidRecord: () => removed++,
     inspectRecordedProcess: () => identity, isPortOpen: async () => portOpen,

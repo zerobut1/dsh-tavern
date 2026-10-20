@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { AssistantRuntimeProvider, useExternalStoreRuntime, type AppendMessage } from '@assistant-ui/react'
 import { ChatGPT } from './chatgpt'
 import './mobile.css'
+import { browserRequestId } from '../../lib/domain/browser-request-id.js'
 
 type Message = { id: string; role: 'user' | 'assistant'; text: string }
 type State = { sessionId: string; chatId: string; title: string; revision: number; busy: boolean; error?: string; messages?: Message[] }
@@ -59,7 +60,7 @@ function App() {
     const text = message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
     setSending(true); setError('')
     try {
-      await rpc('send', { sessionId: current.sessionId, chatId: current.chatId, revision: current.revision, requestId: crypto.randomUUID(), text })
+      await rpc('send', { sessionId: current.sessionId, chatId: current.chatId, revision: current.revision, requestId: browserRequestId(), text })
       await refresh()
     } catch (failure) { setError(String((failure as Error).message || failure)); throw failure }
     finally { setSending(false) }

@@ -732,7 +732,7 @@
                     try { attempt = JSON.parse(localStorage.getItem(key) || "null"); } catch (_) {}
                     if (!attempt) {
                         const workspaceId = await playWorkspaceResolverRef.current();
-                        attempt = { operationId: window.crypto.randomUUID(), sessionId: await props.conversationHost.connectWorkspace(workspaceId) };
+                        attempt = { operationId: browserRequestId(), sessionId: await props.conversationHost.connectWorkspace(workspaceId) };
                         localStorage.setItem(key, JSON.stringify(attempt));
                     }
                     await waitForSessionSummary(attempt.sessionId);
