@@ -95,3 +95,18 @@
 - 前端生成文件、标准插件包生成文件、相关 JavaScript 语法及 `git diff --check` 检查通过。
 - 额外尝试 `tests/android-install.test.mjs`：21 项中 4 项通过、17 项失败。失败包含 POSIX 路径与 Windows 盘符路径差异、Unix shell 夹具及沙箱临时文件重命名权限问题。该测试和安卓源码相对上游均未修改；未做实际安卓运行验证，不能将这组检查视为通过。
 - 仅同步源码并合并开关，没有重启运行中的 DSH、修改真实存档或用户配置、调用真实模型或 QQ 发送接口，也没有推送远程。
+
+## 同日第四次同步：27942889
+
+- 本地起点：`ae2af1afba3abc8a778f065409f208cc91e2bd02`，恢复分支：`codex/backup-custom-before-update-20261020`。
+- 拉取后发现 `origin/custom` 已重写为 `861d3caa2eba6974dcdfbbe228dcc43be4a921f7`，包含第三次同步和统一每局工具调用开关。核对提交后确认本地没有额外独有改动，先对齐该远程版本再同步上游。
+- 远程版本实际包含的旧上游基线：`3c6f86bc`；新基线：`279428894c381c84ec15d56475628720f0307723`。
+- 本轮纳入上游 4 个提交：3 个安装或 Profile 切换改动、1 个自动发布清单。26 个自定义提交无冲突完成 rebase，`git range-diff` 确认全部补丁保持一致。
+- 上游支持无需 Electron 读取 `app.asar` 中的宿主包名，适配 DSH NEXT 2.0.19 的运行时布局，并使用 NEXT 自带的 Profile 选择机制切换酒馆，保留真实 `desktop` 目录。
+
+验证：
+
+- `node bin/test-custom-unit.mjs`：125 项通过，零失败、零跳过。
+- `node bin/test-tavern.mjs tests/official-desktop-runtime.test.mjs tests/profile-bridge-next.test.mjs`：9 项通过，零失败；1 项真实 Electron 检查因本机未安装官方 Desktop 而跳过。
+- `node bin/build-tavern-client.mjs --check`、`node bin/build-plugin-package.mjs --check` 及 `git diff --check` 通过。
+- 本轮没有源码冲突或额外功能修改，未新增测试、运行全量测试、重启服务或推送远程。
