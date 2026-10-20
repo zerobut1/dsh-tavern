@@ -78,8 +78,16 @@ export function appendStorySubmissionReminder(assembly, outputEnabled) {
 }
 
 /** A Tavern settings switch; it applies to story and script play only. */
+/** Legacy split choices merge like the global settings: either enabled means on. */
+export function storyToolCallSelection(chat) {
+  if (chat?.storyToolCall === true || chat?.storyHistoryToolCall === true) return true
+  if (chat?.storyToolCall === false || chat?.storyHistoryToolCall === false) return false
+  return null
+}
+
+/** Conversation overrides the global default; story and script play only. */
 export function storyToolCallEnabled(chat, enabled) {
-  const selected = typeof chat?.storyToolCall === 'boolean' ? chat.storyToolCall : enabled
+  const selected = storyToolCallSelection(chat) ?? enabled
   return selected === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
 }
 

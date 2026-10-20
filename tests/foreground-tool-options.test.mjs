@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createNativePlayOrchestrationStrategy } from '../tavern-plugin/lib/domain/foreground-orchestration-strategies.js'
+import { storyToolCallEnabled } from '../tavern-plugin/lib/domain/story-tool-submission.js'
 
-for (const global of [false, true]) for (const local of [undefined, false, true]) {
-  test(`历史工具回放的单局设置优先于全局（全局=${global}，单局=${local}）`, async () => {
+const choices = [
+  ['跟随全局', {}, undefined], ['关闭', { storyToolCall: false }, false], ['开启', { storyToolCall: true }, true],
+  ['旧历史关闭', { storyHistoryToolCall: false }, false], ['旧历史开启', { storyHistoryToolCall: true }, true],
+  ['旧正文关闭历史开启', { storyToolCall: false, storyHistoryToolCall: true }, true],
+  ['旧正文开启历史关闭', { storyToolCall: true, storyHistoryToolCall: false }, true]
+]
+for (const global of [false, true]) for (const [name, flags, local] of choices) {
+  test(`正文提交与历史回放使用同一个单局开关（全局=${global}，单局=${name}）`, async () => {
     let globalReads = 0
     const strategy = createNativePlayOrchestrationStrategy({
       modeFor: async () => 'story', filterMessages: value => value, resolvePreset: async () => null,
@@ -11,7 +18,8 @@ for (const global of [false, true]) for (const local of [undefined, false, true]
       appendFrame: ({ messages }) => ({ messages, receipt: {} }), recordFrame() {},
       historyToolCall: async () => { globalReads++; return global }
     })
-    const chat = { mode: 'story', ...(local === undefined ? {} : { storyHistoryToolCall: local }), storyToolCall: !global }
+    const chat = { mode: 'story', ...flags }
+    assert.equal(storyToolCallEnabled(chat, global), local ?? global)
     const messages = [
       { role: 'user', content: [{ type: 'text', text: '之前输入' }], source: { kind: 'user' } },
       { role: 'assistant', id: 'old', content: [{ type: 'text', text: '之前正文' }], source: { kind: 'model', provider: 'dsh-tavern', model: 'reply-projection' } },

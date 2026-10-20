@@ -208,7 +208,7 @@ import { createPhoneChat } from './domain/phone-chat.js'
 import { createPresetLibrary } from './domain/preset-library.js'
 import { createForegroundOrchestrationStrategies } from './domain/foreground-orchestration-strategies.js'
 import { clearFailedTurnSurface, rollbackAvailability, interruptedSurfaceTurns } from './domain/rollback-surface.js'
-import { createStorySubmissionTool, foldStorySubmission, STORY_SUBMIT_TOOL_NAME } from './domain/story-tool-submission.js'
+import { createStorySubmissionTool, foldStorySubmission, STORY_SUBMIT_TOOL_NAME, storyToolCallSelection } from './domain/story-tool-submission.js'
 import { readHistoryLayoutFile } from './domain/history-tool-call.js'
 import { createTavernRetryLimiter } from './domain/tavern-retry-limiter.js'
 import { lastTavernHelperVariables, HELPER_MESSAGE_COLD_WINDOW } from './domain/tavern-helper-context.js'
@@ -2040,12 +2040,9 @@ export async function apply(ctx) {
     // Keep the inherited history, but start this branch with no pending source work.
     targetAgent.inbox.clear()
     const lastNativeTurn = Number(sessionEvents(target).findLast(event => event.type === 'turn/start')?.data?.turn) || 0
-    const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn })
-    // The choices belong to the source conversation, including when forking an earlier round.
-    for (const name of ['storyToolCall', 'storyHistoryToolCall']) {
-      if (typeof source[name] === 'boolean') fork[name] = source[name]
-      else delete fork[name]
-    }
+    // Settings belong to the current source conversation, even at a historical fork point.
+    const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn,
+      storyToolCall: storyToolCallSelection(source) })
     fork.forkedFrom = { ...fork.forkedFrom, chatId: source.id, sessionId: source.sessionId, storageRevision: source._storageRevision,
       stateChatId: state.id, stateRevision: state._storageRevision, turn, atSeq }
     await conversationRegistry.publish(fork)

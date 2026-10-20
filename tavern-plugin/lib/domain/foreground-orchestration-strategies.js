@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { projectPlayerContent } from './player-input-content.js'
 import { resolveRuntimePresetMacros } from './runtime-presets.js'
 import { projectRuntimePresetRequest } from './runtime-preset-lifecycle.js'
-import { STORY_INPUT_ONLY_PROMPT, STORY_SUBMIT_PROMPT, STORY_SUBMIT_PROMPT_STRICT, STORY_SUBMIT_TOOL_NAME, withStorySubmitAck } from './story-tool-submission.js'
+import { STORY_INPUT_ONLY_PROMPT, STORY_SUBMIT_PROMPT, STORY_SUBMIT_PROMPT_STRICT, STORY_SUBMIT_TOOL_NAME, withStorySubmitAck, storyToolCallSelection } from './story-tool-submission.js'
 import { NO_FOREGROUND_TOOLS_PROMPT, normalizeDisabledForegroundTools } from './foreground-tools.js'
 import { projectHistoryAsToolCalls } from './history-tool-call.js'
 import { markRequestHandled, requestHandledBy } from './request-lineage.js'
@@ -312,8 +312,8 @@ export function createNativePlayOrchestrationStrategy(options) {
       // A replayed transcript calls a tool. Strict providers reject a call whose
       // declaration is missing, so replay only when this turn offers submit_story;
       // the per-game tool switch can still remove it after the global settings say on.
-      const historyWanted = typeof input.chat?.storyHistoryToolCall === 'boolean' ? input.chat.storyHistoryToolCall : typeof options.historyToolCall === 'function' ? (await options.historyToolCall()) === true : false
-      const outputWanted = typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false
+      const historyWanted = storyToolCallSelection(input.chat) ?? (typeof options.historyToolCall === 'function' ? (await options.historyToolCall()) === true : false)
+      const outputWanted = storyToolCallSelection(input.chat) ?? (typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false)
       const submitVisible = typeof options.visibleTools !== 'function'
         || (await options.visibleTools(sessionId)).includes(STORY_SUBMIT_TOOL_NAME)
       const submitOffered = historyWanted && submitVisible
