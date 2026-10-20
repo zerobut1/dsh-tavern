@@ -295,6 +295,24 @@ export function normalizeMvuToolSubmission(value) {
 function valueKind(value) {
   return Array.isArray(value) ? '列表' : value !== null && typeof value === 'object' ? '对象' : typeof value === 'number' ? '数字' : typeof value === 'boolean' ? '布尔值' : value === null ? '空值' : '文本'
 }
+
+// Catch misplaced existing fields before MVU silently strips an unknown key.
+// New dictionary keys remain valid; suggest a correction only for an existing suffix.
+function assertMvuPaths(operations, variables) {
+  const root = object(variables?.stat_data)
+  for (const operation of operations) {
+    for (const path of operationPointers(operation)) {
+      if (valueAtPointer(variables, path).exists) continue
+      const keys = pointerSegments(path).slice(1)
+      for (let skip = 1; skip < keys.length - 1; skip++) {
+        const candidate = '/stat_data/' + keys.slice(skip).map(pointerSegment).join('/')
+        if (Object.hasOwn(root, keys[skip]) && valueAtPointer(variables, candidate).exists) {
+          throw new Error('变量路径不存在：' + path + '；当前快照中对应路径为 ' + candidate + '。请以变量结构和当前快照为准，修正完整 operations，不要省略失败项。')
+        }
+      }
+    }
+  }
+}
 // A replace that changes a field's shape (list <-> text <-> object) makes MVU's
 // schema diverge and the card's view mis-render. Let the agent fix it and retry.
 function assertMvuValueKinds(operations, variables) {
@@ -472,6 +490,7 @@ export function projectMvuBackgroundRequest(frame) {
     system: [
       '只根据【正文】中已经确认发生的事实结算变量，不得读取或推断玩家意图。',
       '不得根据旧轮剧情、隐藏思考、候选项或未发生事件更新变量。',
+      '变量路径以【变量结构】和【当前变量快照】的实际层级为准；人物卡文字规则中的分组名称不代表嵌套关系。提交前逐级核对路径，重试时修正失败项，不得仅删掉失败项来报告成功。',
       ...(tasks.characterDesign ? ['若确实需要人物设计，在当前后台 Agent 内先加载 character-design 并调用人物档案工具；无需也不得创建另一个 Agent。完成后继续本轮结算。'] : []),
       tasks.posture ? '在同一次回复中同时调用 posture_submit 和 mvu_submit_update，分别提交本轮结束时可见的人物姿势与变量变化；两者互不依赖，无需等待前一个工具返回。不得在回复正文输出 JSON。' : '本轮姿势结算已关闭，直接提交变量，不生成姿势。',
       '本轮必须调用 mvu_submit_update；姿势和变量分别以各自工具返回结果为准，只补交未完成项。',
@@ -601,6 +620,7 @@ export function createMvuSettlementModule(options = {}) {
       try {
         if (!call || call.name !== MVU_SUBMIT_UPDATE_TOOL_NAME) throw new Error('后台 Agent 调用了未授权的变量工具')
         submission = resolveMvuSubmissionMacros(normalizeMvuToolSubmission(call.arguments), input)
+        assertMvuPaths(submission.operations, input.currentVariables)
         assertMvuValueKinds(submission.operations, input.currentVariables)
         if (feedback && submission.operations.length === 0) throw new Error('上一批更新未通过校验，请修正完整 operations，不能用空数组跳过失败')
       } catch (error) {
