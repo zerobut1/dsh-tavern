@@ -20,8 +20,7 @@ test('输入区按钮打开指令小窗口，并将输入交给后台接口', as
     rpc: async (method, args, sessionId) => { saved = { method, args, sessionId }; return { status: 'running' } },
     liveTavernView: { invalidate: () => { invalidated = true } }
   })
-  const view = render({ sessionId: 's', running: false })
-  const button = view.children[0]
+  const button = render({ sessionId: 's', running: false })
   assert.equal(button.children[0], '后台指令')
   assert.equal(button.props.disabled, false)
   button.props.onClick()
@@ -34,10 +33,17 @@ test('输入区按钮打开指令小窗口，并将输入交给后台接口', as
   assert.equal(invalidated, true)
   currentState = { status: 'failed', available: true, instruction: '原指令', error: '变量更新失败详情' }
   const failed = render({ sessionId: 's', running: false })
-  assert.equal(failed.children[1], null, '输入区不展示错误详情')
-  failed.children[0].props.onClick()
+  assert.equal(failed.type, 'button')
+  assert.deepEqual([...failed.children], ['后台指令'], '输入区只保留按钮')
+  failed.props.onClick()
   assert.equal(dialog.initialError, currentState.error, '错误详情只在指令弹窗内显示')
   assert.equal(dialog.initialValue, currentState.instruction)
+  currentState = { status: 'done', available: true, receipt: { changes: [{}] } }
+  const done = render({ sessionId: 's', running: false })
+  assert.equal(done.type, 'button')
+  assert.deepEqual([...done.children], ['后台指令'], '成功结果也不显示在输入区')
+  done.props.onClick()
+  assert.match(dialog.description, /已完成，更新 1 项变量/)
 })
 
 function fixture(run) {
