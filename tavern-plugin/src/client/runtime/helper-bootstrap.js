@@ -126,7 +126,7 @@
                         || (Number(incoming.lifecycleRevision || 0) === Number(state.lifecycleRevision || 0)
                             && Number(incoming.stateRevision || 0) < Number(state.stateRevision || 0)))) return;
 					if (incoming) { state = Object.assign({}, state, copy(incoming)); state.messages = modules.applyVariableReceipt.indexApi.from(state.messages || []); if (!incoming.transaction) delete state.transaction; }
-					if (result.worldbook) state.worldbook = copy(result.worldbook);
+                    if (result.worldbook && result.worldbook.name === state.worldbook?.name) state.worldbook = copy(result.worldbook);
 					// Chat-data saves acknowledge their own submitted snapshot separately.
 					if (incoming && facade && method !== "saveTavernChatData") facade.sync(state);
 				},
@@ -539,7 +539,7 @@
 				});
 				if (result && result.stale) throw new Error("聊天已变化，消息未创建");
 			};
-			window.getWorldbookNames = function () { return state.worldbook && state.worldbook.name ? [state.worldbook.name] : []; };
+            window.getWorldbookNames = function () { return (state.worldbookNames || []).concat(state.worldbook?.name ? [state.worldbook.name] : []); };
 			window.getCharWorldbookNames = function () { return { primary: state.worldbook && state.worldbook.name || null, additional: [] }; };
 			window.getWorldbook = async function (name) {
 				if (state.worldbook && (name === "current" || name === state.worldbook.name)) {
@@ -550,8 +550,7 @@
                     return copy(book && book.entries || []);
                 }
 				const result = await call("getTavernHelperWorldbook", { name: name });
-				state.worldbook = copy(result.worldbook);
-				return copy(state.worldbook.entries || []);
+                return copy(result.worldbook?.entries || []);
 			};
 			function legacyWorldbookEntry(entry, index) {
 				const extra = entry.extra || {};
@@ -570,27 +569,7 @@
 					use_group_scoring: "same_as_global", automation_id: null, group_prioritized: false, group_weight: 100
 				};
 			}
-			function legacyWorldbookPatch(patch, original) {
-				const next = copy(original || {});
-				function set(path, value) {
-					const parts = path.split("."); let target = next;
-					for (const key of parts.slice(0, -1)) target = target[key] || (target[key] = {});
-					target[parts[parts.length - 1]] = copy(value);
-				}
-				const mappings = { uid: "uid", comment: "name", enabled: "enabled", content: "content", probability: "probability", type: "strategy.type", keys: "strategy.keys", filters: "strategy.keys_secondary.keys", logic: "strategy.keys_secondary.logic", scan_depth: "strategy.scan_depth", order: "position.order", exclude_recursion: "recursion.prevent_incoming", prevent_recursion: "recursion.prevent_outgoing", sticky: "effect.sticky", cooldown: "effect.cooldown", delay: "effect.delay", group: "extra.group", display_index: "extra.displayIndex" };
-				for (const key of Object.keys(mappings)) if (Object.prototype.hasOwnProperty.call(patch, key)) set(mappings[key], patch[key]);
-				for (const pair of [["case_sensitive", "caseSensitive"], ["match_whole_words", "matchWholeWords"]]) if (Object.prototype.hasOwnProperty.call(patch, pair[0])) set("extra." + pair[1], patch[pair[0]] === "same_as_global" ? null : patch[pair[0]]);
-				if (patch.depth !== undefined && patch.depth !== null) set("position.depth", patch.depth);
-				if (patch.position !== undefined) {
-					const match = /^at_depth_as_(system|user|assistant)$/.exec(patch.position);
-					set("position.type", match ? "at_depth" : patch.position);
-					if (match) set("position.role", match[1]);
-				}
-				if (patch.delay_until_recursion !== undefined) set("recursion.delay_until", patch.delay_until_recursion === false ? null : patch.delay_until_recursion === true ? 1 : patch.delay_until_recursion);
-				const unsupported = { use_group_scoring: "same_as_global", automation_id: null, group_prioritized: false, group_weight: 100 };
-				for (const key of Object.keys(unsupported)) if (patch[key] !== undefined && patch[key] !== unsupported[key]) throw new Error("当前兼容层尚未支持世界书字段: " + key);
-				return next;
-			}
+			const legacyWorldbookPatch = modules.legacyWorldbookPatch;
 			function worldbookPayload(entries) {
 				if (!Array.isArray(entries)) throw new TypeError("世界书条目必须是数组");
 				// Convert RegExp before crossing the JSON host boundary.
@@ -603,13 +582,11 @@
 			}
 			async function writeWorldbook(name, entries, expectedEntries) {
 				const result = await call("replaceTavernHelperWorldbook", { name: name, entries: worldbookPayload(entries), expectedEntries: expectedEntries });
-				state.worldbook = copy(result.worldbook);
-				return copy(state.worldbook.entries || []);
+                return copy(result.worldbook?.entries || []);
 			}
 			async function freshWorldbook(name) {
 				const result = await call("getTavernHelperWorldbook", { name: name });
-				state.worldbook = copy(result.worldbook);
-				return copy(state.worldbook.entries || []);
+                return copy(result.worldbook?.entries || []);
 			}
 			window.replaceWorldbook = async function (name, entries) {
 				const current = await freshWorldbook(name);
@@ -653,6 +630,7 @@
 				return { entries: result.worldbook.map(legacyWorldbookEntry), delete_occurred: result.deleted_entries.length > 0 };
 			};
 			window.getLorebooks = window.getWorldbookNames;
+            modules.installWorldbookCreation({ window: window, call: call, legacyWorldbookPatch: legacyWorldbookPatch });
 			window.getCharLorebooks = async function () { return window.getCharWorldbookNames(); };
 			window.getCurrentCharPrimaryLorebook = function () { return window.getCharWorldbookNames().primary; };
 			window.getLorebookSettings = function () { return copy(lorebookSettings); };

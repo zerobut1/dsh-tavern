@@ -1,6 +1,7 @@
 import { mergeWorldBooks } from './worldbook-merge.js'
 import { exportCharacterBook, exportSillyTavernWorldBook, inspectWorldBookDocument, prepareWorldBookImport, updateWorldBookDocument, worldBookDisplayName } from './worldbook-resource.js'
 import { freezeJsonProjection, createJsonProjectionCache } from './immutable-json-projection.js'
+import { safeResourceName } from './file-resources.js'
 
 function str(value) {
   return typeof value === 'string' ? value : (value === undefined || value === null ? '' : String(value))
@@ -42,13 +43,14 @@ export function createWorldBookLibrary(options = {}) {
   }
 
   const mutations = new Map()
+  let revision = 0
   function serializeMutation(work) {
     return (locator, ...args) => {
       const source = sourceOf(typeof locator === 'string' ? { kind: 'standalone', path: locator } : locator)
       const key = source.cardPath || source.path
       // A write must be visible to the next read even when the file system
       // reports the same revision for both.
-      const operation = (mutations.get(key) || Promise.resolve()).catch(() => {}).then(() => work(locator, ...args)).then(result => { resolved.clear(); return result })
+      const operation = (mutations.get(key) || Promise.resolve()).catch(() => {}).then(() => work(locator, ...args)).then(result => { resolved.clear(); revision++; return result })
       mutations.set(key, operation)
       const release = () => { if (mutations.get(key) === operation) mutations.delete(key) }
       operation.then(release, release)
@@ -113,6 +115,39 @@ export function createWorldBookLibrary(options = {}) {
     const record = await readRecord({ kind: 'standalone', path })
     return { path: record.source.path, name: record.view.displayName, entryCount: record.view.entryCount,
       enabledCount: record.view.enabledCount, diagnostics: record.view.diagnostics.length }
+  }
+  // Helper's world_names addresses independent library books, not card bindings.
+  async function namedBooks() {
+    const rows = await Promise.all((await resources.list('worldbook')).map(async path => {
+      try { return await summaries.standalone(path, standaloneSummary) } catch { return null }
+    }))
+    return rows.filter(Boolean)
+  }
+  async function names() { return [...new Set((await namedBooks()).map(book => book.name))] }
+  async function named(name) {
+    if (typeof name !== 'string' || !name.trim()) throw new Error('世界书名称不能为空')
+    name = name.trim().normalize('NFC')
+    const matches = (await namedBooks()).filter(book => book.name === name)
+    if (matches.length > 1) throw new Error('世界书名称重复，无法确定目标: ' + name)
+    if (!matches.length) throw new Error('世界书不存在: ' + name)
+    return await readRecord({ kind: 'standalone', path: matches[0].path })
+  }
+  const creations = new Map()
+  async function create(name) {
+    if (typeof name !== 'string') throw new TypeError('世界书名称必须是字符串')
+    name = name.trim().normalize('NFC')
+    if (!name) return false
+    if (safeResourceName(name) !== name) throw new Error('世界书名称不能包含路径')
+    const previous = creations.get(name) || Promise.resolve()
+    const operation = previous.catch(() => {}).then(async () => {
+      const path = normalizePath('worldbooks/' + name + '.json', 'worldbook')
+      if ((await names()).includes(name) || await resources.readText(path) !== undefined) return false
+      await importBook({ name: name + '.json', text: JSON.stringify({ name, entries: {} }) })
+      return true
+    })
+    creations.set(name, operation)
+    try { return await operation }
+    finally { if (creations.get(name) === operation) creations.delete(name) }
   }
   async function cardSummary(cardPath) {
     const card = await cards.read(cardPath)
@@ -386,7 +421,7 @@ export function createWorldBookLibrary(options = {}) {
   }
 
   async function importBook(payload) {
-    try { return await importBookPayload(payload) } finally { resolved.clear() }
+    try { return await importBookPayload(payload) } finally { resolved.clear(); revision++ }
   }
   async function importBookPayload(payload) {
     const prepared = prepareWorldBookImport(payload)
@@ -453,5 +488,5 @@ export function createWorldBookLibrary(options = {}) {
     return { removed: source.cardPath, kind: 'embedded' }
   }
 
-  return Object.freeze({ catalog, get, setGlobal, binding, associations, bound, templateSnapshot, bind, setBindings, unbind, import: importBook, update: serializeMutation(update), replaceNative: serializeMutation(replaceNative), export: exportBook, characterBookForCard, remove: serializeMutation(remove) })
+  return Object.freeze({ catalog, names, named, create, revision: () => revision, get, setGlobal, binding, associations, bound, templateSnapshot, bind, setBindings, unbind, import: importBook, update: serializeMutation(update), replaceNative: serializeMutation(replaceNative), export: exportBook, characterBookForCard, remove: serializeMutation(remove) })
 }

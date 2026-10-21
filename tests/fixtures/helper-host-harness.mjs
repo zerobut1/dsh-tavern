@@ -5,7 +5,7 @@ import { TAVERN_COMPATIBILITY_CAPABILITIES } from '../../tavern-plugin/lib/domai
 
 let descriptor
 vm.runInNewContext(await readFile(new URL('../../tavern-plugin/lib/client.js', import.meta.url), 'utf8'), {
-  window: { __ModuleLoader__: { load(value) { descriptor = value } } }, console
+  window: { addEventListener() {}, __ModuleLoader__: { load(value) { descriptor = value } } }, console
 })
 export const helperClient = descriptor.factory(() => ({}))
 

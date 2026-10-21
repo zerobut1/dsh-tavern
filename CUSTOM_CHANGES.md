@@ -51,6 +51,14 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 覆盖子代理停用、目录过滤与任务状态、顶栏设置、开场及静态状态栏、动态世界书缓存、压缩输入过滤、分叉定位、正文正则与工具回放、每局设置、文本高亮、生图完整提示词及首次参考意见、手机接口和 QQ 桥接。外部服务以替身代替，个别持久化测试使用临时目录。CSS 布局、完整宿主生命周期和真实账号连通性仍属于人工或专门的集成测试范围。
 
+### 酒馆助手创建世界书
+
+兼容《道渊》等角色卡调用的 `getLorebooks()`、`createLorebook(name)` 和 `createLorebookEntry(name, entry)`。世界书保存为资料库中的独立资源，支持按名称读取和更新；创建返回布尔值，单条写入返回新条目的 UID。同名创建不覆盖旧书，也不自动全局启用或改变角色绑定，沿用 SillyTavern 与酒馆助手的创建语义。
+
+准备页、消息页面和卡片脚本共用旧条目字段转换与现有写入校验；准备页中新建独立书不会被当成本局主书草稿，访问其他书也不会替换主书名称。最小单元测试覆盖三种调用入口、落盘回读、同名及并发创建和不自动启用，已加入自定义测试清单。正式会话的 `/cut` 兼容不在此次改动范围。
+
+入口：[worldbook-library.js](tavern-plugin/lib/domain/worldbook-library.js)、[helper-worldbook-creation.js](tavern-plugin/src/client/runtime/helper-worldbook-creation.js)。语义依据见[创建世界书接口说明](docs/research/tavern-helper-worldbook-creation.md)。
+
 ### QQ 私聊桥接
 
 通过本机 NapCat OneBot 11 正向 WebSocket，将白名单好友的文字私聊提交到固定的 Tavern 原生对话，沿用角色卡、预设、世界书和后台结算。按输入请求编号取得本轮正文，只发送显示投影中的文字；支持对话别名切换、持久化消息去重、串行处理和断线重连。

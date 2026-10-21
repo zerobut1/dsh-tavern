@@ -3,7 +3,8 @@ function installOpeningPreviewBridge(token, preview) {
   const original = preview.runtime ? {
     host: window.SillyTavern, helper: window.TavernHelper,
     getChatMessages: window.getChatMessages, setChatMessages: window.setChatMessages,
-    waitGlobalInitialized: window.waitGlobalInitialized
+    waitGlobalInitialized: window.waitGlobalInitialized,
+    getWorldbook: window.getWorldbook, updateWorldbookWith: window.updateWorldbookWith
   } : null;
   const swipes = preview.swipes.slice();
   let selected = preview.selectedIndex;
@@ -64,6 +65,7 @@ function installOpeningPreviewBridge(token, preview) {
   window.generateRaw = function (config) { return generation('generateTavernHelperRaw', config); };
   window.getCharWorldbookNames = function () { return { primary: worldbook ? worldbook.name : null, additional: [] }; };
   window.getWorldbook = async function (name) {
+    if (original && name !== 'current' && name !== worldbook?.name) return original.getWorldbook(name);
     if (preview.preparationId) {
       const result = await request('dsh-tavern-opening-read', {});
       worldbook = result.worldbook;
@@ -72,6 +74,7 @@ function installOpeningPreviewBridge(token, preview) {
     return copy(worldbook.entries);
   };
   window.updateWorldbookWith = async function (name, updater) {
+    if (original && name !== 'current' && name !== worldbook?.name) return original.updateWorldbookWith(name, updater);
     const previous = await window.getWorldbook(name);
     const draft = copy(previous);
     const updated = await updater(draft);

@@ -1829,7 +1829,7 @@ export async function apply(ctx) {
       const paths = new Set([chat.cardPath])
       for (const source of binding.sources || [binding]) if (source.path || source.cardPath) paths.add(source.path || source.cardPath)
       const versions = await Promise.all([...paths].map(path => profileData.version('resources/' + path)))
-      return JSON.stringify([binding, versions, await profileData.version('tavern-extension-settings.json'), await profileData.version('prompt-template-variables.json')])
+      return JSON.stringify([binding, versions, worldBooks.revision(), await profileData.version('tavern-extension-settings.json'), await profileData.version('prompt-template-variables.json')])
     },
     readChanges: chatPersistence.readChangedIndices,
     readViewDelta: chatPersistence.readViewDelta,

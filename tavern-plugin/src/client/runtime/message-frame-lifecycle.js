@@ -97,7 +97,7 @@
 			}
 			if (afterMessages.length > shared) operations.push({ op: "messages.append", values: clone(afterMessages.slice(shared)) });
 			if (afterMessages.length < beforeMessages.length) operations.push({ op: "messages.truncate", length: afterMessages.length });
-			for (const key of ["turnMessageIds", "chatVariables", "scriptVariables", "globalVariables", "characterVariables", "worldbook", "character", "characterName", "playerName", "regexScripts", "lifecycleRevision"]) {
+            for (const key of ["turnMessageIds", "chatVariables", "scriptVariables", "globalVariables", "characterVariables", "worldbook", "worldbookNames", "character", "characterName", "playerName", "regexScripts", "lifecycleRevision"]) {
 				if (same(previous[key], target[key])) continue;
 				operations.push({ op: "value.replace", key: key, value: clone(target[key]) });
 				if (["chatVariables", "scriptVariables", "globalVariables", "characterVariables"].includes(key)) variablesChanged = true;
@@ -504,7 +504,7 @@
 						if (current()) event.source.postMessage({ type: "dsh-tavern-helper-response", token: data.token, requestId: data.requestId, ok: false, error: String(error.message || error) }, "*");
 					});
 				} else if (data.type === "dsh-tavern-helper-call" && props.sessionId) {
-					const allowedMethods = new Set(["generateTavernHelper", "generateTavernHelperRaw", "stopTavernHelperGeneration", "stopAllTavernHelperGeneration", "prepareSessionOpening", "createTavernHelperMessages", "updateTavernHelperPrompts", "updateTavernHelperVariables", "updateTavernHelperMessages", "getTavernHelperWorldbook", "replaceTavernHelperWorldbook"]);
+					const allowedMethods = new Set(["generateTavernHelper", "generateTavernHelperRaw", "stopTavernHelperGeneration", "stopAllTavernHelperGeneration", "prepareSessionOpening", "createTavernHelperMessages", "updateTavernHelperPrompts", "updateTavernHelperVariables", "updateTavernHelperMessages", "getTavernHelperWorldbook", "createTavernHelperWorldbook", "replaceTavernHelperWorldbook"]);
 					if (data.method === "startSessionOpening") {
 						const request = sourceDocument.openingRequest;
 						const start = async function () {

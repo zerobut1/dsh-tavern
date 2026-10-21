@@ -32,7 +32,7 @@ export function createOpeningPreparation({ readCard, worldBooks, generate, gener
   }
   function runtimeContext(draft) {
     return { ...projectTavernHelperContext(draft.chat), worldbook: draft.document ? projectTavernHelperWorldbook(inspectWorldBookDocument(draft.document)) : null,
-      characterName: draft.card.name, playerName: draft.userName, character: copy(draft.card),
+      characterName: draft.card.name, playerName: draft.userName, character: copy(draft.card), worldbookNames: copy(draft.worldbookNames),
       globalVariables: copy(draft.globalVariables || {}), characterVariables: copy(draft.characterVariables || {}),
       extensionSettings: copy(draft.extensionSettings), regexScripts: copy(draft.regexScripts || { global: [], character: [] }) }
   }
@@ -57,6 +57,7 @@ export function createOpeningPreparation({ readCard, worldBooks, generate, gener
     draft.presetSnapshot = settings.sourceChat ? copy(settings.sourceChat.runtimePresetSnapshot || null) : undefined
     draft.sourceLifecycleRevision = Number(settings.sourceChat?.tavernHelperLifecycleRevision) || 0
     draft.card = copy(card)
+    draft.worldbookNames = worldBooks.names ? await worldBooks.names() : []
     draft.userName = settings.userName || settings.sourceChat?.macroState?.userName || '你'
     const swipes = draft.openings.map(opening => opening.text)
     draft.chat = { id: draft.id, cardPath, mode: 'story', mvu: { enabled: settings.runtime === true }, _storageRevision: 0,
@@ -142,7 +143,22 @@ export function createOpeningPreparation({ readCard, worldBooks, generate, gener
         return { input: command.input }
       }
       if (!draft.runtimeEnabled) throw new Error('准备页脚本运行时未初始化')
+      if (method === 'createTavernHelperWorldbook') {
+        const created = await worldBooks.create(args.name)
+        draft.worldbookNames = await worldBooks.names()
+        return { created, names: draft.worldbookNames }
+      }
       if (method === 'loadTavernWorldInfo') return { worldInfo: exportSillyTavernWorldBook(draft.document) }
+      if (['getTavernHelperWorldbook', 'replaceTavernHelperWorldbook'].includes(method)
+          && args.name && args.name !== 'current' && args.name !== draft.worldBookView?.displayName) {
+        const record = await worldBooks.named(args.name)
+        const current = projectTavernHelperWorldbook(record.view)
+        if (method === 'getTavernHelperWorldbook') return { worldbook: current }
+        if (args.expectedEntries !== undefined && JSON.stringify(current.entries) !== JSON.stringify(args.expectedEntries)) throw new Error('世界书已被其他操作修改，请重新读取后重试')
+        const operations = replaceTavernHelperWorldbookOperations(record.view, args.entries)
+        const updated = await worldBooks.update(record.source, { operations })
+        return { updated: operations.length > 0, worldbook: projectTavernHelperWorldbook(updated.view) }
+      }
       if (method === 'getTavernHelperWorldbook') return { worldbook: present(draft).worldbook }
       if (method === 'replaceTavernHelperWorldbook') {
         const result = await this.replaceWorldbook(id, args.entries, args.expectedEntries)
