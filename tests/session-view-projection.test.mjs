@@ -13,9 +13,12 @@ test('window projection uses real resource revisions and absolute helper ids wit
   assert.equal(window.tavernHelper.messages[0].message_id, 8)
   assert.equal(window.tavernHelper.turnMessageIds['5'], 8)
   assert.equal(window.tavernHelper.historyAccess.revision, 9)
+  assert.deepEqual(window.tavernHelper.worldbookNames, ['独立世界书'])
   assert.equal(full.tavernHelper.messages[0].message_id, 0)
   const again = await f.projection.project.full(chat)
   assert.equal(again.tavernHelper.messages[0].message, '开场白')
+  assert.deepEqual(again.tavernHelper.worldbookNames, ['独立世界书'])
+  assert.equal(again.cardResourceAccess.revision, 1)
   assert.deepEqual(f.calls, ['sync', 'warm', 'sync'])
 })
 

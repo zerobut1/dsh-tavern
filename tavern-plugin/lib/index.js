@@ -3519,7 +3519,7 @@ export async function apply(ctx) {
   ctx.effect(() => startQqBridge({ dataRoot, store: profileData, messenger: createConversationMessenger({
     readState: sessionStateForSession,
     readHeader: id => chatHeaderForSession(id, ['nativeCommits', 'foregroundError']),
-    readHistory: async id => { const chat = await chatForSession(id); return { chat, view: await projectFullSessionView(chat) } },
+    readHistory: async id => { const chat = await chatForSession(id); return { chat, view: await sessionProjection.project.full(chat) } },
     activity: chat => backgroundTasks.activity(chat),
     foreground: id => { const phase = agentRegistry.get(id)?.phase?.kind; return Boolean(phase && phase !== 'idle') },
     prompt: (request, signal) => ctx.get('sessionController').prompt(request, signal),

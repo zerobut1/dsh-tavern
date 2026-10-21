@@ -295,7 +295,7 @@ export function createTavernScriptHostAdapter(options = {}) {
   async function createWorldbook(sessionId, name) {
     const chat = await resolveChat(sessionId)
     await assertScriptEnabled(chat)
-    if (settlementTransactions.has(str(sessionId))) throw new Error('MVU 结算事务不能创建跨存储的世界书')
+    if (settlement.has(str(sessionId))) throw new Error('MVU 结算事务不能创建跨存储的世界书')
     const created = await options.worldBooks.create(name)
     return { created, names: await options.worldBooks.names() }
   }

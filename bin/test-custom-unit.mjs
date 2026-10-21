@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 // fixtures. No native DSH boot, browser, NapCat connection or model API.
 const tests = [
   'background-session-retirement', 'background-agent-lifecycle', 'background-task-coordinator', 'header-shortcuts',
+  'conversation-header', 'conversation-background-model', 'session-view-projection', 'card-preparation',
   'card-opening-previews', 'persistent-status-view',
   'worldbook-placement', 'worldbook-recall', 'compaction-request',
   'worldbook-library', 'helper-worldbook-api', 'helper-worldbook-creation',

@@ -11,7 +11,7 @@ export function projectionFixture(overrides = {}) {
     tavernRemoteAssets: { pinExtensions: async value => ({ ...value, pins: [], diagnostics: [] }) },
     liveCardUpdate: { project: async (_chat, _card, value) => value }, activityOf: () => ({ busy: false, phase: 'idle' }),
     cardUpdateStatus: async () => ({ available: false }), agentRegistry: { get() {} }, str: value => String(value ?? ''),
-    sessionResources: { issue: (id, revision, kind) => ({ id, revision, kind }) }, worldBooks: { bound: async () => null },
+    sessionResources: { issue: (id, revision, kind) => ({ id, revision, kind }) }, worldBooks: { bound: async () => null, names: async () => ['独立世界书'] },
     sessionDebugEvidence: () => ({ loaded: false, events: [], nodes: [] }), cardViewOf: value => value,
     projectLedgerTask: () => null, projectCharacterDesignTask: () => null, projectPhoneChat: () => null,
     readPromptTemplateGlobalVariables: async () => ({}), sessionStore: { get: () => ({ events }) },
