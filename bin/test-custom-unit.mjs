@@ -10,6 +10,7 @@ const tests = [
   'card-opening-previews', 'persistent-status-view',
   'worldbook-placement', 'worldbook-recall', 'compaction-request',
   'worldbook-library', 'helper-worldbook-api', 'helper-worldbook-creation',
+  'preset-editor', 'preset-library',
   'conversation-fork-point', 'conversation-fork-targets', 'conversation-fork',
   'regex-library', 'tavern-regex-order', 'history-tool-call',
   'conversation-background', 'foreground-tool-options',

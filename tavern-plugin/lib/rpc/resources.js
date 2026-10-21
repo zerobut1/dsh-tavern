@@ -11,6 +11,12 @@ export function createResourceHandlers(deps) {
     scriptContinuity, scriptNavigation, sessionActivity, skillImportFiles, str, tavernSkills, updateChat,
     updateTavernSettings, worldBooks, tavernExtensionSettings, profileData, readSessionMap, sessionSignals } = deps
   return {
+    async addPresetEntry(args) {
+      return await presetLibrary.addEntry(args?.path, args?.phase, args?.revision)
+    },
+    async deletePresetEntry(args) {
+      return { preset: await presetLibrary.deleteEntry(args?.path, args?.entryKey, args?.revision) }
+    },
     async listGlobalRegex() {
       return { items: await tavernExtensionSettings.listRegex() }
     },

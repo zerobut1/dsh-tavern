@@ -19450,6 +19450,42 @@ const tavernTextLayoutFeature = createTavernTextLayoutFeature();
 				function regexDraft(script) { return Object.assign({}, regexValue(script), regexDrafts[script.regexKey] || {}); }
 				function updateEntryDraft(entry, patch) { setEntryDrafts(function (current) { return Object.assign({}, current, { [entry.entryKey]: Object.assign({}, entryValue(entry), current[entry.entryKey] || {}, patch) }); }); }
 				function updateRegexDraft(script, patch) { setRegexDrafts(function (current) { return Object.assign({}, current, { [script.regexKey]: Object.assign({}, regexValue(script), current[script.regexKey] || {}, patch) }); }); }
+				function applyEntryStructureChange(nextPreset, removedEntry, addedKey) {
+					const keys = new Map();
+					(preset.entries || []).forEach(function (entry) {
+						if (removedEntry && entry.sourcePromptIndex === removedEntry.sourcePromptIndex) return;
+						const sourceIndex = removedEntry && Number.isInteger(entry.sourcePromptIndex) && entry.sourcePromptIndex > removedEntry.sourcePromptIndex ? entry.sourcePromptIndex - 1 : entry.sourcePromptIndex;
+						const next = (nextPreset.entries || []).find(item => Number.isInteger(sourceIndex) ? item.sourcePromptIndex === sourceIndex && item.identifier === entry.identifier : item.entryKey === entry.entryKey);
+						if (next) keys.set(entry.entryKey, next.entryKey);
+					});
+					setEntryDrafts(function (current) { return Object.fromEntries(Object.entries(current).filter(([key]) => keys.has(key)).map(([key, draft]) => [keys.get(key), draft])); });
+					setOpenRows(function (current) {
+						const next = new Set();
+						current.forEach(function (key) { if (!key.startsWith("entry:")) next.add(key); else if (keys.has(key.slice(6))) next.add("entry:" + keys.get(key.slice(6))); });
+						if (addedKey) next.add("entry:" + addedKey);
+						return next;
+					});
+					setPreset(nextPreset);
+				}
+				async function addPresetEntry(phase) {
+					if (!preset || busy || movingEntry.current) return;
+					movingEntry.current = true; setBusy(true); setError("");
+					try {
+						const result = await rpc("addPresetEntry", { path: preset.path, phase, revision: preset.revision }, props.scope.sessionId);
+						applyEntryStructureChange(result.preset, null, result.entryKey); await refresh(); notifyTavernDataChanged(["presets", "sessions"], "presets");
+					} catch (err) { setError(String(err && err.message || err)); }
+					finally { movingEntry.current = false; setBusy(false); }
+				}
+				async function deletePresetEntry(entry) {
+					if (!preset || busy || movingEntry.current) return;
+					if (!await askConfirm("删除预设条目“" + entry.name + "”吗？")) return;
+					movingEntry.current = true; setBusy(true); setError("");
+					try {
+						const result = await rpc("deletePresetEntry", { path: preset.path, entryKey: entry.entryKey, revision: preset.revision }, props.scope.sessionId);
+						applyEntryStructureChange(result.preset, entry); await refresh(); notifyTavernDataChanged(["presets", "sessions"], "presets");
+					} catch (err) { setError(String(err && err.message || err)); }
+					finally { movingEntry.current = false; setBusy(false); }
+				}
 				async function movePresetEntry(entryKey, phase, beforeEntryKey = "") {
 					if (!preset || busy || movingEntry.current || entryKey === beforeEntryKey) return;
 					movingEntry.current = true; setBusy(true); setError("");
@@ -19548,7 +19584,7 @@ const tavernTextLayoutFeature = createTavernTextLayoutFeature();
 							h("label", { className: "dsh-tavern-prompt-editor-field" }, "角色", h("select", { value: draft.role, disabled: busy, onChange: function (event) { updateEntryDraft(entry, { role: event.target.value }); } }, h("option", { value: "system" }, "system"), h("option", { value: "user" }, "user"), h("option", { value: "assistant" }, "assistant"))),
 							h("label", { className: "dsh-tavern-prompt-editor-field full" }, "内容", h("textarea", { value: draft.content, disabled: busy, onChange: function (event) { updateEntryDraft(entry, { content: event.target.value }); } })),
 							h("label", { className: "dsh-tavern-prompt-editor-toggle" }, h("input", { type: "checkbox", checked: draft.enabled, disabled: busy, onChange: function (event) { updateEntryDraft(entry, { enabled: event.target.checked }); } }), "启用此条目"),
-							h("div", { className: "dsh-tavern-prompt-editor-actions" }, h("button", { className: "dsh-tavern-btn", disabled: busy || !dirty, onClick: function () { savePresetEntry(entry); } }, "保存此条目")))
+							h("div", { className: "dsh-tavern-prompt-editor-actions" }, entry.identifier !== "chatHistory" ? h("button", { className: "dsh-tavern-btn danger", disabled: busy, onClick: function () { deletePresetEntry(entry); } }, "删除条目") : null, h("button", { className: "dsh-tavern-btn", disabled: busy || !dirty, onClick: function () { savePresetEntry(entry); } }, "保存此条目")))
 						: h("div", null, h("div", { className: "dsh-tavern-extension-note" }, "这是由兼容运行时填充的系统占位，不能在这里编辑。"), h("pre", { className: "dsh-tavern-prompt-content" }, entry.content || "[由运行时提供的占位]")));
 				}
 				function regexRow(script) {
@@ -19567,7 +19603,8 @@ const tavernTextLayoutFeature = createTavernTextLayoutFeature();
 				function phaseSection(phase, title, description, entries) {
 					return h("section", { className: "dsh-tavern-preset-phase phase-" + phase, "aria-label": title, ...presetDropHandlers(phase) },
 						h("div", { className: "dsh-tavern-preset-phase-head" }, h("div", null, h("div", { className: "dsh-tavern-preset-phase-title" }, title), h("div", { className: "dsh-tavern-preset-phase-description" }, description)), h("span", { className: "dsh-tavern-preset-phase-count" }, entries.length + " 项")),
-						entries.map(entry => h(React.Fragment, { key: entry.entryKey }, dropZone(phase, entry.entryKey), entryRow(entry))), dropZone(phase), entries.length ? null : h("div", { className: "dsh-tavern-preset-phase-empty" }, "此段暂无提示词，可将条目拖到这里"));
+						entries.map(entry => h(React.Fragment, { key: entry.entryKey }, dropZone(phase, entry.entryKey), entryRow(entry))), dropZone(phase), entries.length ? null : h("div", { className: "dsh-tavern-preset-phase-empty" }, "此段暂无提示词，可添加条目或将条目拖到这里"),
+						h("button", { type: "button", className: "dsh-tavern-btn", disabled: busy, "aria-label": title + "添加条目", onClick: function () { addPresetEntry(phase); } }, "＋ 添加条目"));
 				}
 				if (preset && preset.path === detailPath) {
 					const entryGroups = presetGroups;

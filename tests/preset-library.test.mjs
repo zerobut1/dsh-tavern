@@ -114,3 +114,83 @@ test('移动拒绝系统占位及无效分段，同名标识条目不会丢失',
   assert.deepEqual(preset.dshPreset.front.map(e => e.content), ['第一项'])
   assert.deepEqual(preset.dshPreset.back.map(e => e.content), ['第二项'])
 })
+
+test('新增条目进入所选三段和发送顺序，编辑后可导出并重新加载运行', async () => {
+  const h = harness(), library = h.create(), original = document()
+  original.prompts.push({ identifier: 'chatHistory', marker: true })
+  original.prompt_order = [
+    { character_id: 100000, order: [{ identifier: 'main', enabled: false }], custom: 'retain' },
+    { character_id: 100001, order: [{ identifier: 'main', enabled: true }, { identifier: 'chatHistory', enabled: true }] }
+  ]
+  original.dsh_tavern = { other: 42 }
+  h.files.set(path, JSON.stringify(original))
+  const keys = []
+  for (const phase of ['front', 'middle', 'back']) {
+    const before = await library.detail(path)
+    const added = await library.addEntry(path, phase, before.revision)
+    keys.push(added.entryKey)
+    const row = added.preset.dshPreset[phase].find(item => item.id === added.entryKey)
+    assert.equal(row.name, '新条目')
+    assert.equal(row.enabled, true)
+    await library.updateEntry(path, added.entryKey, { content: '新增' + phase })
+  }
+  assert.equal(new Set(keys).size, 3)
+  const saved = JSON.parse((await library.export(path)).text)
+  assert.deepEqual(saved.prompt_order[0], original.prompt_order[0])
+  assert.deepEqual(saved.prompts[0], original.prompts[0])
+  assert.deepEqual(saved.extensions, original.extensions)
+  assert.deepEqual(saved.unknown, original.unknown)
+  assert.equal(saved.dsh_tavern.other, 42)
+  assert.deepEqual(saved.prompt_order[1].order.map(item => item.identifier), ['main', keys[0].slice(0, -2), 'chatHistory', keys[1].slice(0, -2), keys[2].slice(0, -2)])
+  const restored = h.create()
+  await restored.select(path)
+  const snapshot = await restored.runtime.fullSnapshot()
+  assert.equal(snapshot.front.text, '写故事\n\n新增front')
+  assert.equal(snapshot.middle.text, '新增middle')
+  assert.equal(snapshot.back.text, '新增back')
+})
+
+test('删除重复标识只移除选中条目，清理各组顺序并修正其余词条的排序索引', async () => {
+  const h = harness(), library = h.create()
+  const original = { prompts: [
+    { identifier: 'same', content: '第一项' }, { identifier: 'same', content: '第二项', unknown: 42 },
+    { identifier: 'later', content: '后续词条' }, { identifier: 'chatHistory', marker: true }
+  ], prompt_order: [
+    { character_id: 100000, order: [{ identifier: 'later' }, { identifier: 'same', enabled: false }, { identifier: 'same', enabled: true, custom: 7 }] },
+    { character_id: 100001, order: [{ identifier: 'same', enabled: false }, { identifier: 'same', enabled: true }, { identifier: 'later' }, { identifier: 'chatHistory' }] }
+  ], dsh_tavern: { other: 42, promptLayout: { front: [{ sourceIndex: 2, identifier: 'later' }], middle: [], back: [{ sourceIndex: 0, identifier: 'same' }, { sourceIndex: 1, identifier: 'same' }] } } }
+  h.files.set(path, JSON.stringify(original))
+  let preset = await library.detail(path)
+  preset = await library.deleteEntry(path, 'same#1', preset.revision)
+  assert.deepEqual(preset.dshPreset.front.map(item => item.content), ['后续词条'])
+  assert.deepEqual(preset.dshPreset.back.map(item => item.content), ['第二项'])
+  assert.equal(preset.entries.find(item => item.identifier === 'same').entryKey, 'same#1')
+  const saved = JSON.parse(h.files.get(path))
+  assert.deepEqual(saved.prompts, original.prompts.slice(1))
+  assert.deepEqual(saved.prompt_order[0].order, [{ identifier: 'later' }, { identifier: 'same', enabled: true, custom: 7 }])
+  assert.deepEqual(saved.dsh_tavern.promptLayout, { front: [{ sourceIndex: 1, identifier: 'later' }], middle: [], back: [{ sourceIndex: 0, identifier: 'same' }] })
+  preset = await library.deleteEntry(path, 'same#1', preset.revision)
+  assert.equal(preset.entries.some(item => item.identifier === 'same'), false)
+  assert.equal(JSON.parse(h.files.get(path)).prompt_order.some(group => group.order.some(item => item.identifier === 'same')), false)
+  assert.equal(preset.entries.find(item => item.identifier === 'chatHistory').marker, true)
+})
+
+test('增删拒绝过期或并发请求和系统占位，兼容缺少顺序及标识的预设', async () => {
+  const h = harness(), library = h.create()
+  h.files.set(path, JSON.stringify({ prompts: [{ content: '第一项' }, { content: '第二项' }, { identifier: 'chatHistory', marker: true }] }))
+  let preset = await library.detail(path)
+  await assert.rejects(library.addEntry(path, 'invalid', preset.revision), /无效的预设分段/)
+  await assert.rejects(library.deleteEntry(path, 'chatHistory#1', preset.revision), /系统占位/)
+  await assert.rejects(library.deleteEntry(path, 'missing#1', preset.revision), /不存在/)
+  assert.equal(h.writes.length, 0)
+  const results = await Promise.allSettled([
+    library.addEntry(path, 'back', preset.revision), library.deleteEntry(path, 'prompt-1#1', preset.revision)
+  ])
+  assert.deepEqual(results.map(result => result.status), ['fulfilled', 'rejected'])
+  await assert.rejects(library.addEntry(path, 'front', preset.revision), /预设已变化/)
+  preset = await library.detail(path)
+  preset = await library.deleteEntry(path, 'prompt-1#1', preset.revision)
+  assert.equal(preset.entries.find(item => item.content === '第二项').identifier, 'prompt-2')
+  assert.deepEqual(preset.dshPreset.front.map(item => item.content), ['第二项'])
+  assert.equal(preset.dshPreset.back.length, 1)
+})

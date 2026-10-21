@@ -61,6 +61,12 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 入口：[worldbook-library.js](tavern-plugin/lib/domain/worldbook-library.js)、[helper-worldbook-creation.js](tavern-plugin/src/client/runtime/helper-worldbook-creation.js)。语义依据见[创建世界书接口说明](docs/research/tavern-helper-worldbook-creation.md)。
 
+### 预设条目增删
+
+酒馆预设详情的前、中、后三段各提供“添加条目”，创建后自动展开，沿用现有的名称、角色、内容和启用状态编辑。普通词条的编辑区可确认删除，系统占位保持只读。增删会校验预设版本、串行保存，维护源条目、发送顺序和三段布局；删除重复标识时仅移除所选词条，并保留其他词条未保存的草稿。导出与后续运行沿用编辑后的源文件。
+
+入口：[preset-editor.js](tavern-plugin/lib/domain/preset-editor.js)、[preset-library.js](tavern-plugin/src/client/features/preset-library.js)。复用预设编辑器与资料库的最小单元测试，覆盖三段新增、导出及重载、重复标识删除、布局索引、版本冲突和草稿保留，已加入 `test:custom:unit`。
+
 ### QQ 私聊桥接
 
 通过本机 NapCat OneBot 11 正向 WebSocket，将白名单好友的文字私聊提交到固定的 Tavern 原生对话，沿用角色卡、预设、世界书和后台结算。按输入请求编号取得本轮正文，只发送显示投影中的文字；支持对话别名切换、持久化消息去重、串行处理和断线重连。

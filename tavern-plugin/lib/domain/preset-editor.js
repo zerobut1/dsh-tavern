@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { previewPresetConversion } from './preset-conversion-preview.js'
 import { inspectPreset } from './preset-reading.js'
 
@@ -192,6 +192,70 @@ export function createPresetEditor(options = {}) {
     await writeText(loaded.normalized, JSON.stringify(next, null, 2))
   }
 
+  async function loadStructureEdit(path, revision) {
+    const loaded = await load(path)
+    if (createHash('sha256').update(loaded.text).digest('hex') !== revision) throw new Error('预设已变化，请重新打开后再添加或删除条目')
+    const inspected = inspectPreset(loaded.text, loaded.normalized)
+    if (!inspected.valid || !inspected.recognized) throw new Error(inspected.error || '预设没有可编辑的 prompts 结构')
+    if (loaded.document.dsh_tavern !== undefined && (loaded.document.dsh_tavern === null || typeof loaded.document.dsh_tavern !== 'object' || Array.isArray(loaded.document.dsh_tavern))) throw new Error('预设 dsh_tavern 扩展格式无效')
+    return { ...loaded, inspected, phases: previewPresetConversion(loaded.text, loaded.normalized).phases }
+  }
+
+  function promptLayout(phases, removedIndex = null) {
+    return Object.fromEntries(['front', 'middle', 'back'].map(phase => [phase, phases[phase]
+      .filter(row => row.sourceIndex !== removedIndex)
+      .map(row => ({ sourceIndex: removedIndex !== null && row.sourceIndex > removedIndex ? row.sourceIndex - 1 : row.sourceIndex, identifier: row.identifier }))]))
+  }
+
+  async function addEntry(path, phase, revision) {
+    const loaded = await loadStructureEdit(path, revision)
+    if (!['front', 'middle', 'back'].includes(phase)) throw new Error('无效的预设分段')
+    const next = loaded.document
+    let identifier
+    do { identifier = 'dsh-tavern-' + randomUUID() } while (loaded.inspected.entries.some(entry => entry.identifier === identifier))
+    const sourceIndex = next.prompts.length
+    next.prompts.push({ identifier, name: '新条目', role: 'system', content: '', enabled: true, marker: false, system_prompt: false,
+      injection_position: phase === 'middle' ? 1 : 0 })
+    const order = next.prompt_order?.[loaded.inspected.orderGroupIndex]?.order
+    if (Array.isArray(order)) {
+      const historyIndex = order.findIndex(item => str(item?.identifier).trim() === 'chatHistory')
+      order.splice(phase === 'front' && historyIndex >= 0 ? historyIndex : order.length, 0, { identifier, enabled: true })
+    }
+    const layout = promptLayout(loaded.phases)
+    layout[phase].push({ sourceIndex, identifier })
+    next.dsh_tavern = { ...next.dsh_tavern, promptLayout: layout }
+    await writeText(loaded.normalized, JSON.stringify(next, null, 2))
+    return { entryKey: identifier + '#1' }
+  }
+
+  async function deleteEntry(path, entryKey, revision) {
+    const loaded = await loadStructureEdit(path, revision)
+    const entry = loaded.inspected.entries.find(item => item.entryKey === str(entryKey))
+    if (!entry) throw new Error('预设条目不存在: ' + str(entryKey))
+    if (entry.marker || entry.identifier === 'chatHistory' || !Number.isInteger(entry.sourcePromptIndex)) throw new Error('系统占位条目不能删除')
+    const next = loaded.document
+    const records = loaded.inspected.entries.filter(item => Number.isInteger(item.sourcePromptIndex))
+    const matching = records.filter(item => item.identifier === entry.identifier).sort((a, b) => a.sourcePromptIndex - b.sourcePromptIndex)
+    const occurrence = matching.findIndex(item => item.sourcePromptIndex === entry.sourcePromptIndex)
+    for (const group of Array.isArray(next.prompt_order) ? next.prompt_order : []) {
+      if (!Array.isArray(group?.order)) continue
+      let index = -1
+      group.order = group.order.filter(item => {
+        if (str(item?.identifier).trim() !== entry.identifier) return true
+        index++
+        return matching.length > 1 && index !== occurrence
+      })
+    }
+    // Preserve synthesized identifiers when removing an earlier array slot.
+    for (const record of records) {
+      const prompt = next.prompts[record.sourcePromptIndex]
+      if (record.sourcePromptIndex > entry.sourcePromptIndex && str(prompt.identifier).trim() === '') prompt.identifier = record.identifier
+    }
+    next.prompts.splice(entry.sourcePromptIndex, 1)
+    if (next.dsh_tavern?.promptLayout !== undefined) next.dsh_tavern = { ...next.dsh_tavern, promptLayout: promptLayout(loaded.phases, entry.sourcePromptIndex) }
+    await writeText(loaded.normalized, JSON.stringify(next, null, 2))
+  }
+
   async function updateRegex(path, regexKey, patch) {
     if (typeof inspectRegexScripts !== 'function') throw new Error('Preset Editor 缺少正则编辑 adapter')
     const input = typeof patch === 'boolean' ? { enabled: patch } : (patch !== null && typeof patch === 'object' && !Array.isArray(patch) ? patch : {})
@@ -220,6 +284,8 @@ export function createPresetEditor(options = {}) {
     update: (path, operations) => mutate(path, normalized => update(normalized, operations)),
     updateEntry: (path, key, patch) => mutate(path, normalized => updateEntry(normalized, key, patch)),
     updateRegex: (path, key, patch) => mutate(path, normalized => updateRegex(normalized, key, patch)),
+    addEntry: (path, phase, revision) => mutate(path, normalized => addEntry(normalized, phase, revision)),
+    deleteEntry: (path, key, revision) => mutate(path, normalized => deleteEntry(normalized, key, revision)),
     moveEntry: (path, key, phase, beforeKey, revision) => mutate(path, normalized => moveEntry(normalized, key, phase, beforeKey, revision))
   })
 }
