@@ -57,8 +57,7 @@ export function createBackgroundCommand({ store, beginTask, settle, prepare = as
         branchId: task.basedOn.branchId, basedOnRevision: task.basedOn.revision,
         messageId: target.messageId, swipeId: target.swipeId,
         expectedLifecycleRevision: Number(chat.tavernHelperLifecycleRevision) || 0,
-        currentVariables: target.variables, variableSchema: target.variables.schema,
-        preserveForeground: true
+        currentVariables: target.variables, variableSchema: target.variables.schema
       })
       signal.throwIfAborted()
       if (!['updated', 'unchanged'].includes(result.receipt?.status)) {

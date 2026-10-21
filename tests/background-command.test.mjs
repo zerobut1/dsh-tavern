@@ -69,7 +69,6 @@ function fixture(run) {
 test('后台指令使用当前快照和原生 MVU 工具提交，保留正文与未要求修改的变量', async () => {
   const run = fixture(async (input, result) => {
     assert.equal(input.currentVariables.stat_data.积分, 20)
-    assert.equal(input.preserveForeground, true)
     const native = createMvuSettlementModule({
       model: { async run(request) {
         assert.equal(request.task, 'command')
@@ -83,7 +82,6 @@ test('后台指令使用当前快照和原生 MVU 工具提交，保留正文与
         return { traceSessionId: 'background', traceBoundary: 5 }
       } },
       runtime: { async settleMvuUpdate(request) {
-        assert.equal(request.preserveForeground, true)
         const prepared = result(input)
         return { effect: prepared.effect, variables: { ...input.currentVariables, stat_data: { ...input.currentVariables.stat_data,
           商城: { 在售: { 药水: { 描述: '恢复体力', 价格: 10, 库存: 2 } } } } } }

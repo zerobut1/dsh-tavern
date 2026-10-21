@@ -16,7 +16,9 @@ test('分卷压缩同时过滤历史世界书与隐藏正文，旧卷和最近�
   const project = text => text.replace(/<hidden>[\s\S]*?<\/hidden>/g, '')
   registerModelStreamHooks({
     ctx, agentRegistry: new Map(), sessionStore: new Map([['s', session]]), requestCoordinates: new Map(),
-    chatForSession: async () => chat, chatHeaderForSession: async () => chat, sessionStateForSession: async () => chat,
+    chatForSession: async () => { throw new Error('压缩不应整份读取存档') },
+    chatHeaderForSession: async () => chat, sessionStateForSession: async () => chat,
+    recentStateForSession: async () => ({ ...chat, messagesFrom: 0 }),
     backgroundAgentRunner: { owns: () => false, requestContext: () => null },
     foregroundStrategies: { projectRequest: () => null, completeRequest() {} },
     storyRetention: async request => { measured.push(JSON.stringify(request.messages)); return { rounds: 1, volumeBudget: Infinity, estimate: text => text.length, projectAssistantText: project } },

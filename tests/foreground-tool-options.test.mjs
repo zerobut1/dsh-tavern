@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createNativePlayOrchestrationStrategy } from '../tavern-plugin/lib/domain/foreground-orchestration-strategies.js'
 import { storyToolCallEnabled } from '../tavern-plugin/lib/domain/story-tool-submission.js'
+import { createTurnOrchestrator } from '../tavern-plugin/lib/domain/turn-orchestration.js'
 
 const choices = [
   ['跟随全局', {}, undefined], ['关闭', { storyToolCall: false }, false], ['开启', { storyToolCall: true }, true],
@@ -20,6 +21,13 @@ for (const global of [false, true]) for (const [name, flags, local] of choices) 
     })
     const chat = { mode: 'story', ...flags }
     assert.equal(storyToolCallEnabled(chat, global), local ?? global)
+    const orchestrator = createTurnOrchestrator({
+      frameBuilder: { build() {} }, storyToolCall: async () => global,
+      store: { headerForSession: async (_id, fields) => Object.fromEntries(fields
+        .filter(field => Object.hasOwn(chat, field)).map(field => [field, chat[field]])) }
+    })
+    assert.equal((await orchestrator.visibleTools('session')).includes('submit_story'), local ?? global,
+      '按需读取也必须保留本局选择，使可用工具与历史回放一致')
     const messages = [
       { role: 'user', content: [{ type: 'text', text: '之前输入' }], source: { kind: 'user' } },
       { role: 'assistant', id: 'old', content: [{ type: 'text', text: '之前正文' }], source: { kind: 'model', provider: 'dsh-tavern', model: 'reply-projection' } },
