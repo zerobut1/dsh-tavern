@@ -1653,6 +1653,11 @@ export async function apply(ctx) {
     }
     return Object.assign(cardPreparation.present({ card: card, as: 'view' }), { path: str(card.path || chat.cardPath) })
   }
+  // Same fields as the view, plus the raw extension object scripts look up
+  // (`characters[id].data.extensions`, including embedded images).
+  function helperCharacterOf(card, chat) {
+    return Object.assign(cardPreparation.present({ card: card, as: 'helper-character' }), { path: str(card.path || chat.cardPath) })
+  }
   // Automatic world book updates land here: any idle read of a playing session
   // lets a library edit enter this game without the explicit reload button.
   async function cardUpdateStatus(chat, context = {}) {
@@ -1718,7 +1723,7 @@ export async function apply(ctx) {
     const chat = await readChatRevision(chatId, revision)
     if (!chat) return undefined
     const card = await readChatCard(chat)
-    if (kind === 'card') return cardViewOf(card, chat)
+    if (kind === 'card') return helperCharacterOf(card, chat)
     const record = await worldBooks.bound(chat.cardPath, card, chat)
     return record ? projectTavernHelperWorldbook(record.view) : null
   } })

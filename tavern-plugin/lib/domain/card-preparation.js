@@ -548,6 +548,16 @@ export function createCardPreparation(options = {}) {
     editable.character_book = clone(card.character_book || null)
     if (request.as === 'editable') return editable
     if (request.as === 'view') return Object.assign({ id: card.id }, editable)
+    // Polled views stay text-only. Helper scripts read this shape on demand:
+    // the runtime copies a character that has no `data` onto `data`, so the raw
+    // extensions (embedded data-URI images included) show up at both
+    // `extensions` and `data.extensions` without serializing the blob twice.
+    if (request.as === 'helper-character') {
+      const character = Object.assign({ id: card.id }, editable)
+      const extensions = rawData(rawOf(request.card)).extensions
+      if (object(extensions)) character.extensions = extensions
+      return character
+    }
     if (request.as === 'detail') {
       return Object.assign({ id: card.id }, editable, { extensions: inspectCardExtensions(request.card) })
     }

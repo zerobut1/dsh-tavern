@@ -130,7 +130,8 @@ export function createSessionViewProjection({
       bypassPlan: null,
       runtimePreset: activePresetSnapshot === null ? null : { id: activePresetSnapshot.presetPath, name: activePresetSnapshot.presetName },
       card: deferResources ? {path: str(card.path || chat.cardPath), name: card.name, tags: card.tags || []} : cardViewOf(card, chat),
-      ...(deferResources ? {cardResourceAccess:sessionResources.issue(chat.id, resourceRevision, 'card')} : {}),
+      // Helper scripts load raw card extensions through the resource capability.
+      ...((deferResources || helperEnabled) && Number.isSafeInteger(resourceRevision) ? {cardResourceAccess:sessionResources.issue(chat.id, resourceRevision, 'card')} : {}),
       // The workbench card a tool wrote during a native turn; plugins tell a saved card
       // from a plain question by its turn. Null for play chats.
       cardSave: cardSaveViewOf(chat),
