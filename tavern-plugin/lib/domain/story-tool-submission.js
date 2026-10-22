@@ -4,7 +4,7 @@ import { createSessionSurfaceMutator } from './session-surface-mutations.js'
 import { toolResultsOf } from './tool-result-message.js'
 
 export const STORY_SUBMIT_TOOL_NAME = 'submit_story'
-export const STORY_SUBMIT_MAX_CORRECTIONS = 2
+export const STORY_SUBMIT_MAX_CORRECTIONS = 5
 export const STORY_SUBMIT_PROMPT = [
   '<output_method>',
   '本轮所有面向玩家的输出都必须通过工具调用完成：最终输出必须调用 submit_story，完整放入 content 字符串参数。',

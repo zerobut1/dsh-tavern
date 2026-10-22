@@ -102,19 +102,20 @@ test('流拦截仅作用于开启开关的原生前台，递归请求只包装�
   }
 })
 
-test('即时拒收后记录纠正指令，同回合最多重试两次；取消或上限不交给通用重试', async () => {
+test('即时拒收后记录纠正指令，同回合最多重试五次；取消或上限不交给通用重试', async () => {
   const run = fixture()
   let delegated = 0
   const handle = payload => run.handlers['agent/request-error'](payload, async () => { delegated++; return 'delegated' })
-  for (let attempt = 0; attempt < 2; attempt++) assert.deepEqual(await handle(run.payload()), { kind: 'retry' })
+  for (let attempt = 0; attempt < 5; attempt++) assert.deepEqual(await handle(run.payload()), { kind: 'retry' })
   const corrections = run.events.filter(event => event.type === 'user/message' && event.data.source.kind.startsWith('plugin:'))
-  assert.equal(corrections.length, 2)
+  assert.equal(corrections.length, 5)
   assert.match(corrections[0].data.content[0].text, /调用 submit_story/)
   assert.equal(run.events.some(event => event.type === 'assistant/message'), false)
   assert.equal(await handle(run.payload()), undefined)
   assert.equal(delegated, 0)
   assert.equal(run.failures[0].code, 'story-tool-required')
   assert.equal(run.failures[0].requestId, 'request')
+  assert.match(run.failures[0].message, /自动纠正 5 次/)
   run.session.append('turn/end', { turn: 2, reason: { kind: 'error' } })
   run.session.append('turn/start', { turn: 3 })
   assert.deepEqual(await handle({ ...run.payload(), turn: 3 }), { kind: 'retry' })

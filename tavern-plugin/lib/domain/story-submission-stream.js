@@ -77,7 +77,7 @@ export function registerStorySubmissionStreamHooks({ ctx, chatForSession, enable
     const corrections = events.slice(start + 1).filter(event => event.type === 'user/message'
       && isProducerSource(event.data?.source, CORRECTION_PRODUCER)).length
     if (corrections >= STORY_SUBMIT_MAX_CORRECTIONS) {
-      const message = '模型连续输出普通文本，已即时拦截；自动纠正 2 次后仍未调用 submit_story，本轮正文未保存。'
+      const message = `模型连续输出普通文本，已即时拦截；自动纠正 ${STORY_SUBMIT_MAX_CORRECTIONS} 次后仍未调用 submit_story，本轮正文未保存。`
       payload.failure = { ...payload.failure, message }
       await recordFailure({ sessionId: session.id, turn: payload.turn, requestId: requestIdForTurn(session, payload.turn),
         code: 'story-tool-required', message })
