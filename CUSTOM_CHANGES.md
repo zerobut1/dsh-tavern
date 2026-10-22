@@ -167,7 +167,9 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 上游提供工具结果读取适配时优先复用。历史正文工具回放继续先执行隐藏文本正则，只改变发送给模型的历史形式。保留上游将历史玩家消息一并回放的能力，正文正则不处理玩家原话，本轮输入仍作为普通消息保留。
 
-2026-10-22 采用上游 `7f01e5c0`：历史工具调用之前若既不是 user 消息也不是工具结果，补入固定的“（以下是此前已经发生的剧情。）”，避免 Gemini 拒绝从工具调用开始的历史；补位 ID 从调用 ID 推导，保持请求稳定。此修复不加强强制调用：仍由提示词要求使用 `submit_story`，并保留普通正文的接收回退。
+2026-10-22 采用上游 `7f01e5c0`：历史工具调用之前若既不是 user 消息也不是工具结果，补入固定的“（以下是此前已经发生的剧情。）”，避免 Gemini 拒绝从工具调用开始的历史；补位 ID 从调用 ID 推导，保持请求稳定。此上游修复本身只处理请求顺序。
+
+同日增加本地强制提交校验：原生 story/script 游玩开启“正文走工具调用”后，模型直接输出的普通正文不进入存档或后台结算。通过宿主 `agent.steer` 在同一回合要求将刚才正文原样放入 `submit_story.content`，最多自动纠正两次；仍不成功则记录明确失败，不回退接收普通正文。纠正次数从本回合日志读取，成功提交后沿用上游投影收拢本次拒收文本、纠正上下文和工具回执，保留玩家输入及之前的轮次；有新增玩家输入时不跨越该输入收拢。关闭开关、卡片编辑、兼容模式和后台任务保持各自流程，空输出与纯思考沿用原有报错。增加 4 条最小单元测试，并将正文提交原有单元测试纳入自定义入口；共 219 项通过。
 
 入口：[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
 

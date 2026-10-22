@@ -8,11 +8,12 @@ import { synchronizeBodyEdits } from '../domain/body-editor.js'
 import { synchronizeTemplateHistory } from '../domain/template-history.js'
 import { turnRepliedByModel } from '../domain/story-alignment.js'
 import { sessionEvents } from '../domain/session-events.js'
-import { appendStorySubmissionReminder } from '../domain/story-tool-submission.js'
+import { appendStorySubmissionReminder, createStorySubmissionGuard } from '../domain/story-tool-submission.js'
 
 export function registerTurnLifecycleHooks({
   reconcileWhenIdle,
   backgroundAgentRunner,
+  chatHeaderForSession,
   hookChatForSession,
   clearRuntimePresetRequestState,
   contentText,
@@ -34,6 +35,10 @@ export function registerTurnLifecycleHooks({
   turnOrchestrator,
   userMessageForTurn,
 }) {
+  const requireStorySubmission = createStorySubmissionGuard({
+    chatForSession: sessionId => chatHeaderForSession(sessionId, ['mode', 'requestMode', 'storyToolCall', 'storyHistoryToolCall']),
+    enabled: storyOutputToolCall
+  })
   ctx.on('agent/turn-stopping', async function (payload) {
     const session = payload.agent && payload.agent.session
     if (session === undefined) return
@@ -61,6 +66,14 @@ export function registerTurnLifecycleHooks({
         message
       })
       throw new Error(message)
+    }
+    try {
+      if (await requireStorySubmission(payload, assistant)) return
+    } catch (error) {
+      if (error.code === 'story-tool-required') await turnOrchestrator.recordFailure({
+        sessionId, turn: payload.turn, requestId, code: error.code, message: error.message
+      })
+      throw error
     }
     const saved = await foregroundHandoff.finalize({
       sessionId,

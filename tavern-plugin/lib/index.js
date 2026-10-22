@@ -3699,6 +3699,7 @@ export async function apply(ctx) {
 
   registerTurnLifecycleHooks({
     backgroundAgentRunner,
+    chatHeaderForSession,
     hookChatForSession,
     clearRuntimePresetRequestState,
     contentText,
