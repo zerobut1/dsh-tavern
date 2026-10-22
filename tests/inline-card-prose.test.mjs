@@ -38,3 +38,31 @@ test('普通 Markdown 和代码示例保持原路径，行内渲染仍拒绝可�
     assert.equal(parseInline(html, dom.window.document), null)
   }
 })
+
+test('双语行内正文向角色脚本公开实际 DOM，并通知消息已渲染', t => {
+  const dom = new JSDOM()
+  t.after(() => dom.window.close())
+  const root = dom.window.document.createElement('div')
+  dom.window.document.body.append(root)
+  let effect, cleanup
+  const announcements = []
+  const React = { useRef: () => ({ current: root }), useLayoutEffect: run => { effect = run }, createElement: (_tag, props) => props }
+  const component = new Function('React', 'bindTavernFontZoom', 'installTavernTextColors', 'findTavernQuoteRanges', 'announceTavernMessageRendered', source + ';return TavernInlineFragment')(
+    React, () => () => {}, () => ({ dispose() {} }), () => [], (_view, session, id) => announcements.push([session, id]))
+  const props = component({ content: '<p>千纱说：「<ruby>你好<rt>こんにちは</rt></ruby>」</p>', scriptLayer: { sessionId: 's', messageId: 0 } })
+  for (const [name, value] of Object.entries(props)) if (name.startsWith('data-')) root.setAttribute(name, value)
+  cleanup = effect()
+  assert.equal(dom.window.document.querySelector('[data-dsh-script-layer][data-session="s"][data-mesid="0"]'), root)
+  assert.deepEqual(announcements, [['s', 0]])
+  const text = root.querySelector('p').firstChild
+  const name = dom.window.document.createElement('a')
+  name.textContent = '千纱'
+  let opened = false
+  name.addEventListener('click', () => { opened = true })
+  text.replaceWith(name, '说：「')
+  name.click()
+  assert.equal(opened, true)
+  assert.ok(root.querySelector('ruby rt'), '角色名改写保留双语注音')
+  cleanup()
+  assert.equal(root.childNodes.length, 0)
+})

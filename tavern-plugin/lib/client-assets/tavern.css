@@ -1,3 +1,11 @@
+.dsh-tavern-script-part { position: relative; }
+.dsh-tavern-script-layer[data-dsh-script-pending] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Tavern components share the active DSH theme, including accent overrides. */
 :root, body {
   --dsh-tavern-accent: var(--dsw-alias-brand-primary);

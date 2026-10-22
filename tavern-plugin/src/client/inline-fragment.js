@@ -30,7 +30,11 @@ function TavernInlineFragment(props) {
         // the host page viewport units cannot feed back into the zoomed size.
         const unbind = bindTavernFontZoom(root, root.ownerDocument.defaultView);
         const colors = installTavernTextColors(root, {}, findTavernQuoteRanges);
+        if (props.scriptLayer) announceTavernMessageRendered(root.ownerDocument.defaultView, props.scriptLayer.sessionId, props.scriptLayer.messageId);
         return function () { colors.dispose(); unbind(); root.replaceChildren(); };
-    }, [props.content]);
-    return React.createElement('div', {ref, className:'mes_text dsh-tavern-inline-fragment'});
+    }, [props.content, props.scriptLayer?.sessionId, props.scriptLayer?.messageId]);
+    return React.createElement('div', {ref, className:'mes_text dsh-tavern-inline-fragment',
+        'data-dsh-script-layer':props.scriptLayer ? '' : undefined,
+        'data-session':props.scriptLayer?.sessionId,
+        'data-mesid':props.scriptLayer ? String(props.scriptLayer.messageId) : undefined});
 }

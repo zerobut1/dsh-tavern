@@ -494,7 +494,7 @@
 				const content = pluginHtml ? pluginHtml.html : String(part.content !== undefined ? part.content : part.html || "");
 				if (pluginHtml && pluginHtml.after) return h(React.Fragment, { key: index }, renderTavernProjection({ parts: [Object.assign({}, part, { content: content, html: undefined })] }, Object.assign({}, options, { plugin: null })), pluginHtml.after);
                 if (options.trustedCardMode === true && !options.openingPreview && parseTavernInlineFragment(content, window.document)) {
-                    return h(TavernInlineFragment, {key:index, content:content});
+                    return h(TavernInlineFragment, {key:index, content:content, scriptLayer:options.scriptLayer});
                 }
 				return h(TavernMessageFrame, { key: index, content: content, sessionId: options.sessionId, turn: options.turn, partIndex: index, frameOwner: options.frameOwner, frameSizing: options.frameSizing, helperContext: options.helperContext, helperContextReader: options.helperContextReader, openingPreview: options.openingPreview, onSelectOpening: options.onSelectOpening, onSubmitOpening: options.onSubmitOpening, trustedCardMode: options.trustedCardMode, eager: options.eagerFrame, executeSlash: options.executeSlash });
 			});
