@@ -286,6 +286,9 @@ export function createWorldBookLibrary(options = {}) {
     // and the exported document must describe the same resource observation.
     const records = new Map()
     const normalizedCardPath = normalizePath(cardPath, 'card')
+    // The character definition stays frozen, but its embedded book is shared.
+    // Private worldbook copies were handled above; other games read the library.
+    if (chat?.cardDefinitionSnapshot) card = undefined
     card ??= await cards.read(normalizedCardPath)
     if (card === undefined) throw new Error('人物卡不存在: ' + normalizedCardPath)
     function read(locator) {
@@ -329,8 +332,8 @@ export function createWorldBookLibrary(options = {}) {
   // A game without its own copy re-resolves the library on every turn and view.
   // Projecting each unchanged standalone book once — and each unchanged merged
   // set once — keeps that as cheap as the copy it replaced. Card books stay
-  // uncached: their document comes from a card read the caller already owns, and
-  // a chat may still be running on an older snapshot of the card.
+  // uncached: this resolver owns their card observation, which may also be an
+  // unsaved preparation draft when there is no game definition snapshot.
   const resolved = new Map()
   // Each entry is one book or one merged set: a three-book set needs four.
   const RESOLVED_LIMIT = 4

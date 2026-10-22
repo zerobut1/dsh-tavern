@@ -9,7 +9,7 @@ const tests = [
   'conversation-header', 'conversation-background-model', 'session-view-projection', 'card-preparation',
   'card-opening-previews', 'persistent-status-view',
   'worldbook-placement', 'worldbook-recall', 'compaction-request',
-  'worldbook-library', 'helper-worldbook-api', 'helper-worldbook-creation',
+  'worldbook-library', 'helper-worldbook-api', 'helper-worldbook-creation', 'play-card-snapshot',
   'preset-editor', 'preset-library',
   'conversation-fork-point', 'conversation-fork-targets', 'conversation-fork',
   'regex-library', 'tavern-regex-order', 'history-tool-call',

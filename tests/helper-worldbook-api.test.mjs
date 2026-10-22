@@ -61,6 +61,41 @@ for (const embedded of [false, true]) {
   })
 }
 
+test('有角色卡快照的对话共享内嵌书：连续开关、编辑器修改及另一对话均读取已保存状态', async t => {
+  const host = await createHelperWorldbookHost(true)
+  t.after(host.cleanup)
+  const source = { kind: 'card', cardPath: 'card.json' }
+  await host.library.update(source, { operations: { op: 'add', entry: { comment: '第二个设置', content: '第二个设置正文', primaryKeys: ['旧词'], enabled: true } } })
+  host.chat.cardDefinitionSnapshot = await host.readCard()
+  const pinned = structuredClone(host.chat.cardDefinitionSnapshot)
+  const api = await connect(host)
+  const toggle = (index, enabled) => api.updateWorldbookWith('审计书', entries => { entries[index].enabled = enabled; return entries })
+  const states = async () => Array.from(await api.getWorldbook('审计书'), entry => entry.enabled)
+
+  await toggle(0, false)
+  assert.deepEqual(await states(), [false, true])
+  await toggle(1, false)
+  assert.deepEqual(await states(), [false, false], '后一次操作不重置先前设置')
+  await toggle(0, true)
+  assert.deepEqual(await states(), [true, false], '反向切换不能因旧快照变成空操作')
+  assert.deepEqual((await host.library.get(source)).view.entries.map(entry => entry.enabled), [true, false], '世界书编辑器读取同一份数据')
+
+  const another = { id: 'another', cardDefinitionSnapshot: pinned }
+  const bound = () => host.library.bound('card.json', another.cardDefinitionSnapshot, another)
+  assert.deepEqual((await bound()).view.entries.map(entry => entry.enabled), [true, false])
+  const entries = (await host.library.get(source)).view.entries
+  await host.library.update(source, { operations: [
+    { op: 'update', ref: entries[0].ref, patch: { enabled: false } },
+    { op: 'update', ref: entries[1].ref, patch: { enabled: true } }
+  ] })
+  assert.deepEqual(Array.from(await (await connect(host)).getWorldbook('审计书'), entry => entry.enabled), [false, true], '重建小窗口后能读取手动修改')
+  const prepared = prepareWorldBookRecall({ card: pinned, chat: { ...another, messages: [{ role: 'assistant', text: '旧词', turn: 1 }] }, turn: 1, worldBook: await bound() })
+  assert.match(prepared.context, /第二个设置正文/)
+  assert.doesNotMatch(prepared.context, /旧正文/)
+  assert.deepEqual(host.chat.cardDefinitionSnapshot, pinned, '不修改本局角色定义')
+  assert.equal(host.chat.openingWorldbookSnapshot, undefined, '不创建独立世界书副本')
+})
+
 test('关键词更新进入现有 DSH 世界书召回，RegExp 跨宿主边界不丢失', async t => {
   const host = await createHelperWorldbookHost()
   t.after(host.cleanup)
