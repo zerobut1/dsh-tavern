@@ -4,7 +4,7 @@ function parseTavernInlineFragment(content, doc) {
     if (!doc?.createElement || /<!doctype|<\/?(?:html|head|body)\b/i.test(content)) return null;
     const template = doc.createElement('template');
     template.innerHTML = String(content);
-    const allowed = new Set(['DIV','SPAN','P','IMG','BR','HR','B','STRONG','I','EM','U','S','SMALL','SUB','SUP','BLOCKQUOTE','PRE','CODE','UL','OL','LI','DL','DT','DD','TABLE','THEAD','TBODY','TFOOT','TR','TD','TH','CAPTION','COLGROUP','COL','H1','H2','H3','H4','H5','H6','A','DETAILS','SUMMARY','SECTION','ARTICLE','FIGURE','FIGCAPTION']);
+    const allowed = new Set(['DIV','SPAN','P','IMG','BR','HR','B','STRONG','I','EM','U','S','SMALL','SUB','SUP','RUBY','RT','RP','BLOCKQUOTE','PRE','CODE','UL','OL','LI','DL','DT','DD','TABLE','THEAD','TBODY','TFOOT','TR','TD','TH','CAPTION','COLGROUP','COL','H1','H2','H3','H4','H5','H6','A','DETAILS','SUMMARY','SECTION','ARTICLE','FIGURE','FIGCAPTION']);
     for (const node of template.content.querySelectorAll('*')) {
         if (!allowed.has(node.tagName)) return null;
         for (const attr of node.attributes) {

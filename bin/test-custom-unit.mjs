@@ -12,7 +12,7 @@ const tests = [
   'worldbook-library', 'helper-worldbook-api', 'helper-worldbook-creation', 'play-card-snapshot',
   'preset-editor', 'preset-library',
   'conversation-fork-point', 'conversation-fork-targets', 'conversation-fork',
-  'regex-library', 'tavern-regex-order', 'history-tool-call',
+  'regex-library', 'tavern-regex-order', 'inline-card-prose', 'reply-presentation', 'history-tool-call',
   'conversation-background', 'foreground-tool-options',
   'mvu-background-settlement', 'background-command',
   'mobile-chat', 'qq-bridge', 'conversation-messenger', 'onebot-client',

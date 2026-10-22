@@ -175,11 +175,30 @@ export function editableReplyParts(value) {
 
 /** Native prose and isolated HTML share one ordered projection. */
 export function projectDisplayParts(value) {
-  return {
-    parts:displaySourceSegments(value).filter(part=>part.kind!=='marker').map(part=>part.kind==='html'
-      ? {kind:'html',content:part.content} : {kind:'markdown',text:part.text}),
-    warnings:[]
+  const parts = [], prose = []
+  const inlineTags = new Set('a abbr b bdi bdo br cite code data dfn em i kbd mark q rp rt ruby s samp small span strong sub sup time u var wbr'.split(' '))
+  function inlineHtml(part) {
+    if (part.kind !== 'html' || part.fenced) return false
+    const tags = [...part.content.matchAll(/<\/?([a-z][\w:-]*)\b/gi)]
+    return tags.length > 0 && tags.every(match => inlineTags.has(match[1].toLowerCase()))
   }
+  function flush() {
+    // Inline markup belongs to its Markdown paragraph: splitting a ruby from
+    // its quotes would turn one dialogue into three separate display blocks.
+    if (prose.some(part => part.kind === 'html')) {
+      parts.push({ kind: 'html', content: marked.parse(prose.map(part => part.content ?? part.text).join(''), { gfm: true, breaks: true }) })
+    } else parts.push(...prose.map(part => ({ kind: 'markdown', text: part.text })))
+    prose.length = 0
+  }
+  for (const part of displaySourceSegments(value)) {
+    if (part.kind === 'text' || inlineHtml(part)) prose.push(part)
+    else {
+      flush()
+      if (part.kind === 'html') parts.push({ kind: 'html', content: part.content })
+    }
+  }
+  flush()
+  return { parts, warnings: [] }
 }
 
 /** Match renderable HTML regardless of whether it came from regex or model output. */
