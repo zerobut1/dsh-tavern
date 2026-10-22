@@ -3381,7 +3381,7 @@ export async function apply(ctx) {
   })
 
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
-  const rpcDeps = { savePosture, backgroundCommand, tavernExtensionSettings, profileData, readSessionMap, sessionSignals, listGameSubagents, closeGameSubagents, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
+  const rpcDeps = { savePosture, backgroundCommand, tavernExtensionSettings, profileData, sessionSignals, listGameSubagents, closeGameSubagents, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
     applicationUpdater, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog,
     backgroundConfigForSession, bindScript, bodyEditor, callModel, candidateGenerator, candidateTasks, polishRecords, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardTaskPrompts, castAssets,

@@ -3,7 +3,8 @@
 本文件记录个人 `custom` 分支相对上游的源码改动，供日常维护和再次 rebase 时核对。
 
 - 整理日期：2026-10-18。
-- 最近同步：2026-10-22，基线为 `upstream/main` 的 `1f790736f22d3f170e01db4f334a3089e7b77b42`，Tavern 3.1.0。本次纳入 73 个上游提交；经用户确认，移除旧原生生图的完整提示词提交、首次参考意见及旧正文分色性能补丁，采用上游内置配图插件与共享高亮。模板正则来源和快照读取也采用上游实现；其余自定义功能保留。自定义单元测试 180 项、模板相关补充单元测试 15 项全部通过，客户端生成检查通过。同步前备份分支为 `codex/backup-custom-before-upstream-20261022`。
+- 最近同步：2026-10-22，基线为 `upstream/main` 的 `2f50b52fd7453667ca91a7895d099b9c91deb26c`，Tavern 3.1.0。本次纳入 38 个上游提交，保留所有现有自定义功能；自定义请求接口迁入上游拆出的 RPC 模块，后台指令的取消和等待接入新的结算模块。采用上游历史工具调用的固定 user 补位、MVU 面板编辑值在下一轮正文中的一次性说明，以及已退休后台 Agent 的目录过滤。自定义单元测试 211 项、请求回放与后台结算补充单元测试 35 项全部通过，客户端生成检查通过。同步前备份分支为 `codex/backup-custom-before-submit-story-sync-20261022`。
+- 同日上一次同步至 `1f790736` 时，经用户确认移除旧原生生图的完整提示词提交、首次参考意见及旧正文分色性能补丁，采用上游内置配图插件、共享高亮和模板正则实现；此次不恢复这些补丁。
 - 2026-10-18 曾将 33 个原始提交整理为 17 个功能提交，整理前后源码文件树完全一致。后续变更单独提交；已由上游覆盖的修复按维护原则移除。
 - 提交标题和说明均使用中文；合并同一功能的初版及后续修补，按依赖关系排序。
 
@@ -14,6 +15,7 @@
 3. 上游尚未提供的个人新增功能继续保留。
 4. 只有实际功能取舍无法同时满足时才需要确认；普通代码冲突按上述原则处理。
 5. 后续新增或调整功能时，更新本文件，并将独立功能或修复单独提交。
+6. 调研、实验与验证记录只留本地；同步时不重新纳入上游已移出仓库的此类文件。
 
 ## 功能清单
 
@@ -49,7 +51,7 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 执行 `pnpm test:custom:unit`（或 `node bin/test-custom-unit.mjs`）。每次 rebase 上游后必须运行，要求见 [AGENTS.md](AGENTS.md)。测试清单位于 [test-custom-unit.mjs](bin/test-custom-unit.mjs)，只运行相关单元测试；不启动浏览器或真实服务。
 
-覆盖子代理停用、目录过滤与任务状态、顶栏设置、开场及静态状态栏、动态世界书缓存、压缩输入过滤、分叉定位、正文正则与工具回放、每局设置、世界书创建、预设编辑、手机接口和 QQ 桥接。2026-10-22 移除已停用的本地生图、分色补丁用例及入口项。外部服务以替身代替，个别持久化测试使用临时目录。CSS 布局、完整宿主生命周期和真实账号连通性仍属于人工或专门的集成测试范围。
+覆盖子代理停用、目录过滤与任务状态、顶栏设置、开场及静态状态栏、动态世界书缓存、压缩输入过滤、分叉定位、正文正则与工具回放、每局设置、世界书创建、预设编辑、手机接口和 QQ 桥接。2026-10-22 移除已停用的本地生图、分色补丁用例及入口项，并为迁入上游 RPC 模块的自定义接口与后台取消增加最小单元覆盖。外部服务以替身代替，个别持久化测试使用临时目录。CSS 布局、完整宿主生命周期和真实账号连通性仍属于人工或专门的集成测试范围。
 
 2026-10-21 同步后将上游拆出的顶栏、每局设置和会话视图单元测试，以及内嵌图片读取测试纳入自定义检查。会话视图同时提供世界书目录与角色卡资源访问凭据；手机及 QQ 桥接通过新的视图接口读取历史。
 
@@ -59,7 +61,7 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 准备页、消息页面和卡片脚本共用旧条目字段转换与现有写入校验；准备页中新建独立书不会被当成本局主书草稿，访问其他书也不会替换主书名称。最小单元测试覆盖三种调用入口、落盘回读、同名及并发创建和不自动启用，已加入自定义测试清单。正式会话的 `/cut` 兼容不在此次改动范围。
 
-入口：[worldbook-library.js](tavern-plugin/lib/domain/worldbook-library.js)、[helper-worldbook-creation.js](tavern-plugin/src/client/runtime/helper-worldbook-creation.js)。语义依据见[创建世界书接口说明](docs/research/tavern-helper-worldbook-creation.md)。
+入口：[worldbook-library.js](tavern-plugin/lib/domain/worldbook-library.js)、[helper-worldbook-creation.js](tavern-plugin/src/client/runtime/helper-worldbook-creation.js)。语义依据为 SillyTavern 的独立世界书保存与酒馆助手的旧创建接口；详细调研记录仅本地保留。
 
 ### 预设条目增删
 
@@ -164,6 +166,8 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 2026-10-21 起，前台可用工具跟随上游改为按需读取存档头，同时读取两个单局设置字段，避免性能优化后丢失本局覆盖选择。
 
 上游提供工具结果读取适配时优先复用。历史正文工具回放继续先执行隐藏文本正则，只改变发送给模型的历史形式。保留上游将历史玩家消息一并回放的能力，正文正则不处理玩家原话，本轮输入仍作为普通消息保留。
+
+2026-10-22 采用上游 `7f01e5c0`：历史工具调用之前若既不是 user 消息也不是工具结果，补入固定的“（以下是此前已经发生的剧情。）”，避免 Gemini 拒绝从工具调用开始的历史；补位 ID 从调用 ID 推导，保持请求稳定。此修复不加强强制调用：仍由提示词要求使用 `submit_story`，并保留普通正文的接收回退。
 
 入口：[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
 
