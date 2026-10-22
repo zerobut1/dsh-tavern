@@ -26,12 +26,11 @@ function TavernInlineFragment(props) {
         if (!root) return;
         const fragment = parseTavernInlineFragment(props.content, root.ownerDocument);
         if (fragment) root.replaceChildren(fragment);
-        // Zoom only our own wrapper: the card's DOM and styles are never written, and in
-        // the host page viewport units cannot feed back into the zoomed size.
-        const unbind = bindTavernFontZoom(root, root.ownerDocument.defaultView);
+        // Host fragments already inherit DSH's content font size; iframe zoom
+        // would apply the same preference a second time.
         const colors = installTavernTextColors(root, {}, findTavernQuoteRanges);
         if (props.scriptLayer) announceTavernMessageRendered(root.ownerDocument.defaultView, props.scriptLayer.sessionId, props.scriptLayer.messageId);
-        return function () { colors.dispose(); unbind(); root.replaceChildren(); };
+        return function () { colors.dispose(); root.replaceChildren(); };
     }, [props.content, props.scriptLayer?.sessionId, props.scriptLayer?.messageId]);
     return React.createElement('div', {ref, className:'mes_text dsh-tavern-inline-fragment',
         'data-dsh-script-layer':props.scriptLayer ? '' : undefined,

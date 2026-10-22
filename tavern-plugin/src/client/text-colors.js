@@ -57,7 +57,7 @@ function installTavernTextColors(root, options, findQuotes) {
         owned.length = 0;
     }
     let enabled = options.enabled !== false, disposed = false, timer = null;
-    const excluded = 'script,style,textarea,input,select,button,a,code,pre,kbd,samp,svg,math,[hidden],[contenteditable]:not([contenteditable="false"]),[role="button"],[role="textbox"]';
+    const excluded = 'script,style,textarea,input,select,button,code,pre,kbd,samp,svg,math,[hidden],[contenteditable]:not([contenteditable="false"]),[role="textbox"]';
     const blocks = 'p,div,li,td,th,blockquote,section,article,h1,h2,h3,h4,h5,h6';
     // A refresh reads the same ancestors for many text nodes. Cache only for this
     // synchronous pass so later theme/card mutations always get fresh styles.
@@ -106,6 +106,7 @@ function installTavernTextColors(root, options, findQuotes) {
         let group = [], block = null, text = '';
         function flush() {
             for (const [start, end] of findQuotes(text)) for (const entry of group) {
+                if (entry.palette === null) continue;
                 const from = Math.max(start, entry.offset), to = Math.min(end, entry.offset + entry.node.length);
                 if (from < to) add('quote', entry, from - entry.offset, to - entry.offset);
             }
@@ -113,15 +114,21 @@ function installTavernTextColors(root, options, findQuotes) {
         }
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
             const element = node.parentElement;
-            if (!element || element.closest(excluded) || explicitColor(element)) { flush(); block = null; continue; }
+            // An annotation is not part of the quoted base text. Its own color
+            // must survive without splitting the quote on either side of ruby.
+            if (element && element.closest('rt,rp')) continue;
+            if (!element || element.closest(excluded)) { flush(); block = null; continue; }
+            // Colored names and links remain part of the sentence, but retain
+            // their authored colors instead of receiving our highlight.
+            const protectedText = element.closest('a,[role="button"]') || explicitColor(element);
             const owner = element.closest(blocks) || root;
             // <br> is a rendered line break even without a newline text node.
             if (owner !== block || (node.previousSibling && node.previousSibling.nodeName === 'BR')) flush();
             block = owner;
-            const entry = { node, offset: text.length, palette: palette(element) };
+            const entry = { node, offset: text.length, palette: protectedText ? null : palette(element) };
             group.push(entry); text += node.data;
-            if (element.closest('q')) add('quote', entry, 0, node.length);
-            else if (element.closest('em,i')) add('em', entry, 0, node.length);
+            if (!protectedText && element.closest('q')) add('quote', entry, 0, node.length);
+            else if (!protectedText && element.closest('em,i')) add('em', entry, 0, node.length);
         }
         flush();
     }
