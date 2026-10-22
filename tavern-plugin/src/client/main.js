@@ -899,6 +899,7 @@ window.__ModuleLoader__.load({
 // @include features/play-interaction-panels.js
 // @include features/mobile-status.js
 
+// @include features/posture-panel.js
 // @include features/play-controls.js
 
 // @include features/request-context.js

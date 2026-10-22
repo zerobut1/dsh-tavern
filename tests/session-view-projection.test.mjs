@@ -4,12 +4,16 @@ import { projectionFixture } from './fixtures/session-view-projection.mjs'
 
 test('window projection uses real resource revisions and absolute helper ids without poisoning full caches', async () => {
   const f = projectionFixture()
-  const chat = { ...f.chat, cardDefinitionSnapshot: { name: '卡' }, openingWorldbookSnapshot: { version: 1, document: null } }
+  const chat = { ...f.chat, posture: '她站在窗边。', backgroundTasks: { posture: false }, cardDefinitionSnapshot: { name: '卡' }, openingWorldbookSnapshot: { version: 1, document: null } }
   const full = await f.projection.project.full(chat, { deferResources: true })
   const window = await f.projection.project.opening({ chat: { ...chat, messages: [{ role: 'assistant', turn: 5, text: '窗口正文' }] },
     revision: 9, from: 8, to: 8, messageCount: 9 }, { deferResources: true })
   assert.deepEqual(window.historyWindow, { onDemand: true, from: 8, to: 8, messageCount: 9, revision: 9 })
   assert.equal(window.cardResourceAccess.revision, 9)
+  assert.equal(full.posture, chat.posture)
+  assert.equal(window.posture, chat.posture)
+  assert.equal(full.postureEnabled, false)
+  assert.equal(window.postureEnabled, false)
   assert.equal(window.tavernHelper.messages[0].message_id, 8)
   assert.equal(window.tavernHelper.turnMessageIds['5'], 8)
   assert.equal(window.tavernHelper.historyAccess.revision, 9)
@@ -35,6 +39,10 @@ test('cache hits refresh activity and script progress without reading card/histo
   assert.equal(cached.scriptProgress.progress, 2)
   assert.equal(full.scriptProgress.progress, 1)
   assert.equal(cached.tavernHelper, full.tavernHelper)
+  const updated = await f.projection.project.dirty({ ...chat, posture: '她坐在椅子上。', backgroundTasks: { posture: false }, _storageRevision: 2 },
+    full, [], { busy: false, phase: 'idle' }, { changedHeaderFields: ['posture', 'backgroundTasks'] })
+  assert.equal(updated.posture, '她坐在椅子上。')
+  assert.equal(updated.postureEnabled, false)
 })
 
 test('card save stays readable as turn/path after full, cached and dirty projections', async () => {

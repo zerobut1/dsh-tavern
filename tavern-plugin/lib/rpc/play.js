@@ -14,8 +14,11 @@ export function createPlayHandlers(deps) {
     retryStyleReference, rollbackTurn, runtimeGeneration, runtimePrompt, sessionActivity, sessionOperation,
     sessionStateForSession, sessionStore, sessionView, sessionViews, setPlayerName, stopBackground, str,
     templateHistoryFrom, undoRollbackTurn, updateChat, view, withCompactionSession,
-    listGameSubagents, closeGameSubagents, backgroundCommand, chatHeaderForSession } = deps
+    listGameSubagents, closeGameSubagents, backgroundCommand, chatHeaderForSession, savePosture } = deps
   return {
+    async savePosture(args) {
+      return savePosture(args)
+    },
     async startBackgroundCommand(args) {
       return backgroundCommand.start(args || {})
     },

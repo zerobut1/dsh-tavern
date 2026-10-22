@@ -429,6 +429,8 @@
 					view.foregroundError ? h("div", { className: "dsh-card-error" }, h("div", null, view.foregroundError.message || "前台正文生成失败，请重新生成本轮正文。"), h(TavernDebugButton, { sessionId: props.sessionId, turn: latestDebugTurn, className: "dsh-tavern-btn" })) : null,
 					view.tavernHelper ? h(TavernPersistentStatusRuntime, { sessionId: props.sessionId, view: view, executeSlash: props.executeSlash,
 						panels: view.statusBarPlacement === "body" ? "pinned" : "all", section: true }) : null,
+                    h(TavernPosturePanel, { key: props.sessionId, sessionId: props.sessionId, posture: view.posture, enabled: view.postureEnabled,
+                        busy: running || view.activity?.busy || view.activity?.phase === 'pending' || view.regenInProgress || view.settleStatus === 'running' }),
 					(view.presentationWarnings || []).map(function (warning, index) {
 						return h("div", { className: "dsh-card-error", key: "presentation-warning-" + index }, warning);
 					}),
@@ -508,10 +510,6 @@
 					h(TavernPluginTasks, { sessionId: props.sessionId, activity: view.activity, busy: running || view.activity?.busy || view.activity?.phase === "pending" }),
 					h(TavernPluginStatusSections, { sessionId: props.sessionId }),
 					h(TavernLedger, { sessionId: props.sessionId, ledger: view.ledger, ledgerTask: view.ledgerTask, busy: running || view.activity?.busy }),
-					view.postureEnabled ? h("section", { className: "dsh-tavern-status-section" },
-						h("div", { className: "dsh-tavern-status-label" }, "人物姿势"),
-						view.posture ? h("div", { className: "dsh-tavern-status-now" }, view.posture) : h("div", { className: "dsh-tavern-status-empty" }, "等待第一轮状态结算")
-					) : null,
 					h(TavernMvuVariables, { sessionId: props.sessionId, view: view })
 
 				)

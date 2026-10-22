@@ -183,6 +183,7 @@ import { createLedgerEditor } from './domain/ledger-editor.js'
 import { LEDGER_SUBMIT_TOOL } from './domain/story-ledger.js'
 import { createManualLedger } from './domain/manual-ledger.js'
 import { POSTURE_SUBMIT_TOOL } from './domain/posture-submission.js'
+import { createPostureEditor } from './domain/posture-editor.js'
 import { createCastPresentation } from './domain/cast-presentation.js'
 import { createPolishRecords } from './domain/polish-records.js'
 import { createCardAutoReload } from './domain/card-auto-reload.js'
@@ -3368,8 +3369,19 @@ export async function apply(ctx) {
     onStyleEnabled: (sessionId, chatId) => { if (agentRegistry.get(sessionId)?.session) void worldbookPrefilter.start(chatId) }
   })
 
+  const savePosture = createPostureEditor({
+    readChat: sessionId => chatHeaderForSession(sessionId, ['mode', 'posture']),
+    updateChat: (id, mutate, metadata) => updateChatHeader(id, ['mode', 'posture'], mutate, metadata),
+    isBusy: async sessionId => {
+      const chat = await taskStateReader.forSession(sessionId)
+      if (!chat) return true
+      const activity = backgroundTasks.activity(chat)
+      return chat.regenInProgress === true || agentRegistry.get(sessionId)?.phase?.kind === 'running' || activity.busy || activity.phase === 'pending'
+    }
+  })
+
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
-  const rpcDeps = { backgroundCommand, tavernExtensionSettings, profileData, readSessionMap, sessionSignals, listGameSubagents, closeGameSubagents, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
+  const rpcDeps = { savePosture, backgroundCommand, tavernExtensionSettings, profileData, readSessionMap, sessionSignals, listGameSubagents, closeGameSubagents, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds,
     applicationUpdater, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog,
     backgroundConfigForSession, bindScript, bodyEditor, callModel, candidateGenerator, candidateTasks, polishRecords, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardTaskPrompts, castAssets,

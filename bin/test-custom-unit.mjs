@@ -13,7 +13,7 @@ const tests = [
   'preset-editor', 'preset-library',
   'conversation-fork-point', 'conversation-fork-targets', 'conversation-fork',
   'regex-library', 'tavern-regex-order', 'inline-card-prose', 'script-display-layer', 'reply-presentation', 'history-tool-call',
-  'conversation-background', 'foreground-tool-options',
+  'conversation-background', 'posture-editor', 'foreground-tool-options',
   'mvu-background-settlement', 'background-command',
   'mobile-chat', 'qq-bridge', 'conversation-messenger', 'onebot-client',
   'launcher-network', 'lan-http', 'browser-request-id'
