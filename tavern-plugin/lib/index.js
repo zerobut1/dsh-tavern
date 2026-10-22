@@ -24,6 +24,7 @@ import { createPluginDataStore } from './domain/plugin-data-store.js'
 import { createPluginAssets } from './domain/plugin-assets.js'
 import { registerModelStreamHooks } from './hooks/model-stream.js'
 import { registerTurnLifecycleHooks } from './hooks/turn-lifecycle.js'
+import { registerStorySubmissionStreamHooks } from './domain/story-submission-stream.js'
 import { registerGameplayTools } from './tools/gameplay.js'
 import { registerUserProfileTools } from './tools/user-profile.js'
 import { registerSkillTools } from './tools/skills.js'
@@ -3721,6 +3722,14 @@ export async function apply(ctx) {
     storyOutputToolCall: async () => (await readTavernSettings()).storyOutputToolCall,
     turnOrchestrator,
     userMessageForTurn,
+  })
+
+  registerStorySubmissionStreamHooks({
+    ctx,
+    chatForSession: sessionId => chatHeaderForSession(sessionId, ['mode', 'requestMode', 'storyToolCall', 'storyHistoryToolCall']),
+    enabled: async () => (await readTavernSettings()).storyOutputToolCall,
+    isBackground: sessionId => backgroundAgentRunner.owns(sessionId),
+    recordFailure: turnOrchestrator.recordFailure
   })
 
   // ---------- 模型可选工具 ----------

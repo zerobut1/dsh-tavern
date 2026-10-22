@@ -2,16 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { sessionEvents } from './session-events.js'
 import { createSessionSurfaceMutator } from './session-surface-mutations.js'
 import { toolResultsOf } from './tool-result-message.js'
-import { isProducerSource, producerSource } from './message-source.js'
-import { isTurnInput, turnStartIndex } from './session-turn-input.js'
 
 export const STORY_SUBMIT_TOOL_NAME = 'submit_story'
 export const STORY_SUBMIT_MAX_CORRECTIONS = 2
-const CORRECTION_PRODUCER = 'dsh-tavern-story-tool-correction'
 export const STORY_SUBMIT_PROMPT = [
   '<output_method>',
   '本轮所有面向玩家的输出都必须通过工具调用完成：最终输出必须调用 submit_story，完整放入 content 字符串参数。',
   '除已开放的其他工具调用外，不要输出任何普通文本、摘要、说明或收尾语；写在 content 之外的文字会被丢弃。',
+  '禁止输出任何普通文本或前后说明；一旦开始输出文本，请求会立即中止。完整正文只能通过 submit_story 成功提交。',
   '可以先使用已开放的其他工具查询资料；submit_story 必须是本轮最后一次工具调用。',
   '每轮只调用一次 submit_story；content 必须包含完整最终输出，保留全部标签、格式和内容要求，不要省略、缩写或用占位符代替。',
   '提交成功即结束本轮，不要再输出任何消息。',
@@ -93,16 +91,7 @@ export function storyToolCallEnabled(chat, enabled) {
   return selected === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
 }
 
-function eventsForStoryTurn(session, turn) {
-  const events = sessionEvents(session)
-  const start = turnStartIndex(events, turn)
-  if (start < 0) return []
-  const tail = events.slice(start + 1)
-  const end = tail.findIndex(event => event.type === 'turn/end' || event.type === 'turn/start')
-  return end < 0 ? tail : tail.slice(0, end)
-}
-
-/** Reject plain final answers before the story save or background settlement runs. */
+/** Last save barrier if a host bypasses the streaming guard. No plain-text fallback. */
 export function createStorySubmissionGuard({ chatForSession, enabled }) {
   return async function requireSubmission(payload, assistant) {
     if (!assistant?.text || assistant.storyToolSubmission) return false
@@ -110,35 +99,10 @@ export function createStorySubmissionGuard({ chatForSession, enabled }) {
     const chat = await chatForSession(payload.agent.session.id)
     if (chat?.requestMode === 'sillytavern' || !storyToolCallEnabled(chat, await enabled())) return false
     payload.signal?.throwIfAborted()
-    const events = eventsForStoryTurn(payload.agent.session, payload.turn)
-    const corrections = events.filter(event => event.type === 'user/message' && isProducerSource(event.data?.source, CORRECTION_PRODUCER)).length
-    if (corrections >= STORY_SUBMIT_MAX_CORRECTIONS || typeof payload.agent.steer !== 'function') {
-      const error = new Error(corrections >= STORY_SUBMIT_MAX_CORRECTIONS
-        ? '模型未调用 submit_story 提交正文，自动纠正 2 次后仍未成功；本轮正文未保存，请重新生成。'
-        : '模型未调用 submit_story 提交正文，当前宿主不支持回合内纠正；本轮正文未保存。')
-      error.code = 'story-tool-required'
-      throw error
-    }
-    payload.agent.steer({
-      id: 'tavern-story-tool-correction:' + randomUUID(), role: 'user', source: producerSource(CORRECTION_PRODUCER),
-      content: [{ type: 'text', text: '输出方式错误：你刚才直接输出了正文，本轮尚未提交。请立即调用 submit_story，将刚才的完整正文原样放入 content 字符串参数，保留所有标签和格式。不要续写、改写或继续直接输出正文；工具提交成功后结束本轮。' }]
-    })
-    return true
+    const error = new Error('模型未调用 submit_story 提交正文，普通文本已被拒收；请重新生成。')
+    error.code = 'story-tool-required'
+    throw error
   }
-}
-
-// A corrected submission replaces its rejected prose and correction contexts too.
-// Never extend across fresh player input: that input must keep its own surface node.
-function correctedSubmissionStart(session, turn, fallback) {
-  const events = eventsForStoryTurn(session, turn)
-  const correction = events.findIndex(event => event.type === 'user/message'
-    && isProducerSource(event.data?.source, CORRECTION_PRODUCER))
-  if (correction < 0) return fallback
-  const rejected = events.slice(0, correction).findLast(event => event.type === 'assistant/message'
-    && event.data?.message?.source?.kind === 'model')
-  if (!Number.isSafeInteger(rejected?.seq)) return fallback
-  if (events.slice(correction).some(event => event.type === 'user/message' && isTurnInput(event.data))) return fallback
-  return rejected.seq
 }
 
 function validContent(content) {
@@ -206,11 +170,9 @@ export function foldStorySubmission(session, result, bodyText) {
   // event seq; the surface is a seq list, so the call is located by its own seq.
   // A filtered or compacted log makes the two differ, and a positional lookup
   // then fails with "消息替换目标已变化".
-  const callSeq = Number(result.event?.seq ?? result.index)
+  const start = Number(result.event?.seq ?? result.index)
   const receipt = Number(result.receiptIndex)
   const nodes = Array.isArray(session?.surface?.nodes) ? session.surface.nodes.map(Number) : []
-  const correctedStart = correctedSubmissionStart(session, turn, callSeq)
-  const start = nodes.includes(correctedStart) ? correctedStart : callSeq
   const from = nodes.indexOf(start)
   const to = nodes.indexOf(receipt)
   // A step may dispatch several tools, so other receipts can sit between the

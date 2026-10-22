@@ -6,6 +6,7 @@ import { installWorkspaceInstructionPresentation } from '../domain/workspace-ins
 import { presentModelError } from '../domain/model-error-presentation.js'
 import { markRequestHandled, requestHandledBy } from '../domain/request-lineage.js'
 import { currentWorldbookTurn, isHistoricalWorldbook } from '../domain/worldbook-snapshot.js'
+import { storyStreamFailure } from '../domain/story-submission-stream.js'
 
 export function registerModelStreamHooks({
   agentRegistry,
@@ -184,6 +185,8 @@ export function registerModelStreamHooks({
         throw displayedError
       } finally {
         progress('end')
+        const rejected = storyStreamFailure(options)
+        if (rejected) { finish = { kind: 'error', failure: rejected }; failure = rejected.message }
         const completed = finish && finish.kind !== 'error' && finish.kind !== 'aborted'
         void stage?.finish(completed && !failure)
         foregroundStrategies.completeRequest(options, completed)
