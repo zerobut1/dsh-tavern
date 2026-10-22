@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { guardStorySubmissionStream, registerStorySubmissionStreamHooks, storyStreamFailure, STORY_TEXT_REJECTED } from '../tavern-plugin/lib/domain/story-submission-stream.js'
+import { guardStorySubmissionStream, registerStorySubmissionStreamHooks, storyStreamFailure, STORY_TEXT_REJECTED, UPSTREAM_PROMPT_REJECTED } from '../tavern-plugin/lib/domain/story-submission-stream.js'
 import { createStorySubmissionGuard } from '../tavern-plugin/lib/domain/story-tool-submission.js'
 
 const tools = [{ name: 'submit_story' }]
@@ -17,9 +17,8 @@ const submitted = [
 ]
 const collect = async stream => { const chunks = []; for await (const chunk of stream) chunks.push(chunk); return chunks }
 
-test('首个普通文本块立即中止传输，任何正文及后续块都不会送到 Agent', async () => {
+test('首个实际正文立即中止传输，任何正文及后续块都不会送到 Agent', async () => {
   for (const forbidden of [
-    { type: 'block-start', index: 1, blockType: 'text' },
     { type: 'text-delta', index: 1, text: '泄漏正文' },
     { type: 'block-end', index: 1, block: { type: 'text', text: '泄漏正文' } }
   ]) {
@@ -32,6 +31,9 @@ test('首个普通文本块立即中止传输，任何正文及后续块都不�
       Object.freeze(guarded)
       try {
         yield* reasoning
+        yield { type: 'block-start', index: 1, blockType: 'text' }
+        yield { type: 'text-delta', index: 1, text: '' }
+        assert.equal(guarded.signal.aborted, false, '文本块开始还没有实际内容')
         yield forbidden
         drained = true
         yield { type: 'text-delta', index: 1, text: '不应继续生成' }
@@ -51,7 +53,19 @@ test('首个普通文本块立即中止传输，任何正文及后续块都不�
 test('合法思考与工具参数逐块通过，用户取消不会变成自动纠正', async () => {
   const controller = new AbortController()
   const valid = [...reasoning, ...submitted]
-  assert.deepEqual(await collect(guardStorySubmissionStream({ signal: controller.signal }, async function* () { yield* valid })), valid)
+  const shells = [
+    { type: 'block-start', index: 2, blockType: 'text' },
+    { type: 'text-delta', index: 2, text: ' \n' },
+    { type: 'block-end', index: 2, block: { type: 'text', text: '' } }
+  ]
+  assert.deepEqual(await collect(guardStorySubmissionStream({ signal: controller.signal }, async function* () { yield* shells; yield* valid })), valid)
+  const nativeError = { type: 'finish', reason: { kind: 'error', failure: { code: 'CONTENT_FILTER', message: '上游错误' } } }
+  const usage = { type: 'usage', usage: { inputTokens: 10, outputTokens: 2 } }
+  assert.deepEqual(await collect(guardStorySubmissionStream({}, async function* () {
+    yield { type: 'text-delta', text: 'The prompt' }
+    yield usage
+    yield nativeError
+  })), [usage, nativeError], '保留真实接口错误，不改写为工具调用失败')
   let continued = false
   const chunks = []
   await assert.rejects(async () => {
@@ -97,9 +111,44 @@ test('流拦截仅作用于开启开关的原生前台，递归请求只包装�
     assert.deepEqual(await collect(run.ctx.llm.stream(request)), [{ type: 'text-delta', text: '普通正文' }])
   }
   Object.assign(run.state, { chat: { mode: 'story' }, enabled: true, background: false })
-  for (const extra of [{ purpose: 'compaction' }, { tools: [] }]) {
+  for (const extra of [{ purpose: 'compaction' }, { purpose: 'session-title' }, { tools: [] }]) {
     assert.deepEqual(await collect(run.ctx.llm.stream({ ...request, ...extra })), [{ type: 'text-delta', text: '普通正文' }])
   }
+})
+
+test('Gemini 审核拒绝文本按固定前缀识别，分片也不作为正文送出', async () => {
+  const rejected = "The prompt could not be submitted. The prompt contains sensitive words that violate Google's policy."
+  for (const fragments of [[rejected], [...rejected]]) {
+    let transport, consumed = 0
+    const chunks = await collect(guardStorySubmissionStream({}, async function* (request) {
+      transport = request
+      yield { type: 'block-start', index: 0, blockType: 'text' }
+      for (const text of fragments) { consumed++; yield { type: 'text-delta', index: 0, text } }
+      assert.fail('识别前缀后不继续读取审核文本')
+    }))
+    assert.equal(chunks.length, 1)
+    assert.equal(chunks[0].reason.failure.code, UPSTREAM_PROMPT_REJECTED)
+    assert.match(chunks[0].reason.failure.message, /审核拒绝/)
+    assert.equal(transport.signal.aborted, true)
+    assert.ok(consumed <= 70, '只暂存有上限的识别前缀')
+  }
+  const chunks = await collect(guardStorySubmissionStream({}, async function* () {
+    yield { type: 'text-delta', text: 'The protagonist walks away.' }
+    assert.fail('偏离审核前缀后立即拒收普通正文')
+  }))
+  assert.equal(chunks[0].reason.failure.code, STORY_TEXT_REJECTED)
+})
+
+test('审核拒绝直接报上游错误，不追加纠正、不交给通用重试', async () => {
+  const run = fixture()
+  const count = run.events.length
+  const payload = { ...run.payload(), failure: { code: UPSTREAM_PROMPT_REJECTED, message: '上游审核拒绝' } }
+  const result = await run.handlers['agent/request-error'](payload, () => assert.fail('审核拒绝不重试'))
+  assert.equal(result, undefined)
+  assert.equal(run.events.length, count)
+  assert.equal(run.failures[0].code, 'upstream-prompt-rejected')
+  assert.equal(run.failures[0].requestId, 'request')
+  assert.equal(run.failures[0].message, payload.failure.message)
 })
 
 test('即时拒收后记录纠正指令，同回合最多重试五次；取消或上限不交给通用重试', async () => {

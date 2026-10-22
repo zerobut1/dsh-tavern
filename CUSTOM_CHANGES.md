@@ -169,11 +169,13 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 2026-10-22 采用上游 `7f01e5c0`：历史工具调用之前若既不是 user 消息也不是工具结果，补入固定的“（以下是此前已经发生的剧情。）”，避免 Gemini 拒绝从工具调用开始的历史；补位 ID 从调用 ID 推导，保持请求稳定。此上游修复本身只处理请求顺序。
 
-同日增加本地强制提交校验，并按用户要求改为即时拦截：原生 story/script 游玩开启“正文走工具调用”后，在首个普通文本块送入 Agent/UI 前中止单次传输，拒收该块及后续输出。思考块与工具参数允许通过；被拒绝的整次响应不提交为 assistant 消息，也不执行其中的工具。宿主收到专用失败码后，在同一回合、同一步记录纠正指令并重新请求，要求完整正文只能放入 `submit_story.content`；最多自动纠正五次（加上首次请求最多六次），再次违规则明确失败，不入档、不启动后台结算，通用网络重试不能绕过此上限。用户取消不触发自动纠正。结束校验仅保留拒收入档兜底，不再等待输出完成才纠正。移除上一版为拒收正文扩展的历史收拢范围，正文投影恢复上游实现；纠正上下文保留为插件记录，不伪装为玩家输入。关闭开关、卡片编辑、兼容模式和后台任务保持各自流程，空输出与纯思考沿用原有报错。最小单元测试覆盖流块边界、传输中止、合法工具、取消、作用范围及纠正上限。
+同日增加本地强制提交校验，并按用户要求改为即时拦截：原生 story/script 游玩开启“正文走工具调用”后，在首个实际普通文本送入 Agent/UI 前中止单次传输，拒收该块及后续输出；只有块开始、空文本或空白占位时继续等待实际内容。思考块与工具参数允许通过；被拒绝的整次响应不提交为 assistant 消息，也不执行其中的工具。宿主收到专用失败码后，在同一回合、同一步记录纠正指令并重新请求，要求完整正文只能放入 `submit_story.content`；最多自动纠正五次（加上首次请求最多六次），再次违规则明确失败，不入档、不启动后台结算，通用网络重试不能绕过此上限。用户取消不触发自动纠正。结束校验仅保留拒收入档兜底，不再等待输出完成才纠正。移除上一版为拒收正文扩展的历史收拢范围，正文投影恢复上游实现；纠正上下文保留为插件记录，不伪装为玩家输入。关闭开关、卡片编辑、兼容模式和后台任务保持各自流程，空输出与纯思考沿用原有报错。最小单元测试覆盖流块边界、传输中止、合法工具、取消、作用范围及纠正上限。
 
 即时拦截版本：自定义单元测试 220 项、请求组装与网络重试补充单元测试 11 项通过；客户端生成检查与入口语法检查通过。未运行浏览器或真实模型验证。
 
-入口：[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
+审核提示修复：对被接口包装为普通文本的 Gemini 拒绝提示，内部最多暂存固定前缀 `The prompt could not be submitted. The prompt contains sensitive words`，匹配后报告上游审核拒绝，停止工具纠正和通用重试；这些文本不会送入 Agent/UI。该判断只识别已知措辞，不推断所有审核形式；其他非空普通文本仍按工具协议拦截，原生错误保留原错误码。标题生成等带 `purpose` 的辅助请求不参与拦截。本次相关单元测试 12 项通过，未发送真实模型请求。
+
+入口：[story-submission-stream.js](tavern-plugin/lib/domain/story-submission-stream.js)、[story-tool-submission.js](tavern-plugin/lib/domain/story-tool-submission.js)、[conversation-background.js](tavern-plugin/lib/domain/conversation-background.js)、[play-controls.js](tavern-plugin/src/client/features/play-controls.js)、[global-settings.js](tavern-plugin/src/client/modules/global-settings.js)。
 
 ### 13. 兼容调用记录失败提示（已由上游接管）
 
