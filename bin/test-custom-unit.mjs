@@ -15,7 +15,6 @@ const tests = [
   'regex-library', 'tavern-regex-order', 'history-tool-call',
   'conversation-background', 'foreground-tool-options',
   'mvu-background-settlement', 'background-command',
-  'text-colors', 'scene-image-prompt', 'scene-image-prompts', 'scene-image-opinion',
   'mobile-chat', 'qq-bridge', 'conversation-messenger', 'onebot-client',
   'launcher-network', 'lan-http', 'browser-request-id'
 ]

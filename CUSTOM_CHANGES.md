@@ -3,7 +3,7 @@
 本文件记录个人 `custom` 分支相对上游的源码改动，供日常维护和再次 rebase 时核对。
 
 - 整理日期：2026-10-18。
-- 最近同步：2026-10-21，先拉取 `origin/custom` 的内嵌图片读取修复，再将 37 个自定义提交 rebase 到 `upstream/main` 的 `d7761c0d`。沿用上游拆出的顶栏、每局设置、会话视图及结算事务模块，保留自定义功能。自定义单元测试 180 项、冲突相关补充单元测试 36 项全部通过，客户端生成检查通过。
+- 最近同步：2026-10-22，基线为 `upstream/main` 的 `1f790736f22d3f170e01db4f334a3089e7b77b42`，Tavern 3.1.0。本次纳入 73 个上游提交；经用户确认，移除旧原生生图的完整提示词提交、首次参考意见及旧正文分色性能补丁，采用上游内置配图插件与共享高亮。模板正则来源和快照读取也采用上游实现；其余自定义功能保留。自定义单元测试 180 项、模板相关补充单元测试 15 项全部通过，客户端生成检查通过。同步前备份分支为 `codex/backup-custom-before-upstream-20261022`。
 - 2026-10-18 曾将 33 个原始提交整理为 17 个功能提交，整理前后源码文件树完全一致。后续变更单独提交；已由上游覆盖的修复按维护原则移除。
 - 提交标题和说明均使用中文；合并同一功能的初版及后续修补，按依赖关系排序。
 
@@ -49,7 +49,7 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 执行 `pnpm test:custom:unit`（或 `node bin/test-custom-unit.mjs`）。每次 rebase 上游后必须运行，要求见 [AGENTS.md](AGENTS.md)。测试清单位于 [test-custom-unit.mjs](bin/test-custom-unit.mjs)，只运行相关单元测试；不启动浏览器或真实服务。
 
-覆盖子代理停用、目录过滤与任务状态、顶栏设置、开场及静态状态栏、动态世界书缓存、压缩输入过滤、分叉定位、正文正则与工具回放、每局设置、文本高亮、生图完整提示词及首次参考意见、手机接口和 QQ 桥接。外部服务以替身代替，个别持久化测试使用临时目录。CSS 布局、完整宿主生命周期和真实账号连通性仍属于人工或专门的集成测试范围。
+覆盖子代理停用、目录过滤与任务状态、顶栏设置、开场及静态状态栏、动态世界书缓存、压缩输入过滤、分叉定位、正文正则与工具回放、每局设置、世界书创建、预设编辑、手机接口和 QQ 桥接。2026-10-22 移除已停用的本地生图、分色补丁用例及入口项。外部服务以替身代替，个别持久化测试使用临时目录。CSS 布局、完整宿主生命周期和真实账号连通性仍属于人工或专门的集成测试范围。
 
 2026-10-21 同步后将上游拆出的顶栏、每局设置和会话视图单元测试，以及内嵌图片读取测试纳入自定义检查。会话视图同时提供世界书目录与角色卡资源访问凭据；手机及 QQ 桥接通过新的视图接口读取历史。
 
@@ -173,23 +173,19 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 入口：[helper-script-runtime.js](tavern-plugin/src/client/runtime/helper-script-runtime.js)。
 
-### 14. 消息滚动与文本高亮性能
+### 14. 消息滚动与文本高亮性能（已由上游接管）
 
-只为实际匹配到文本的范围注册高亮，减少空范围和重复处理带来的滚动开销。
+2026-10-22 经用户确认，移除本地按消息延迟注册高亮的补丁，采用上游每个文档共用一组高亮与主题监听的实现。
 
 入口：[text-colors.js](tavern-plugin/src/client/text-colors.js)。
 
-### 15. 完整生图提示词提交
+### 15. 完整生图提示词提交（已移除）
 
-增加完整提示词提交接口，适配 ComfyUI 直接使用完整提示词的方式，为首次构图和调整提供对应提示词。其他生图模式继续使用原有流程。
+2026-10-22 经用户确认，随上游删除旧原生生图链路，移除本地专用提交工具、提示词与测试，采用随附的 `dsh-tavern-image` 插件，不将旧协议迁入新插件。
 
-入口：[scene-image-prompt.js](tavern-plugin/lib/domain/scene-image-prompt.js)、[scene-illustration.js](tavern-plugin/lib/domain/scene-illustration.js)、[scene-image-direct-plan.md](tavern-plugin/prompts/scene-image-direct-plan.md)、[scene-image-direct-adjustment.md](tavern-plugin/prompts/scene-image-direct-adjustment.md)。使用说明见[场景生图文档](docs/scene-images.md)。
+### 16. 首次生图参考意见（已移除）
 
-### 16. 首次生图参考意见
-
-点击生图按钮后，在消息操作区下方展开可选参考意见输入框。意见传给构图任务，留空时自动构图。
-
-入口：[scene-images.js](tavern-plugin/src/client/features/scene-images.js)、[scene-illustration.js](tavern-plugin/lib/domain/scene-illustration.js)。
+2026-10-22 经用户确认，移除原生生图按钮下方的参考意见输入框及其后端传递逻辑，使用上游配图插件自己的提示词编辑与重画流程。
 
 ### 17. 手机轻量聊天与角色卡状态栏
 
