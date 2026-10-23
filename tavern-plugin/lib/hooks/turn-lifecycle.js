@@ -8,7 +8,7 @@ import { synchronizeBodyEdits } from '../domain/body-editor.js'
 import { synchronizeTemplateHistory } from '../domain/template-history.js'
 import { turnRepliedByModel } from '../domain/story-alignment.js'
 import { sessionEvents } from '../domain/session-events.js'
-import { appendStorySubmissionReminder, createStorySubmissionGuard } from '../domain/story-tool-submission.js'
+import { appendStorySubmissionReminder, createStorySubmissionGuard, storyToolCallEnabled } from '../domain/story-tool-submission.js'
 
 export function registerTurnLifecycleHooks({
   reconcileWhenIdle,
@@ -37,7 +37,8 @@ export function registerTurnLifecycleHooks({
 }) {
   const requireStorySubmission = createStorySubmissionGuard({
     chatForSession: sessionId => chatHeaderForSession(sessionId, ['mode', 'requestMode', 'storyToolCall', 'storyHistoryToolCall']),
-    enabled: storyOutputToolCall
+    enabled: storyOutputToolCall,
+    visibleTools: sessionId => turnOrchestrator.visibleTools(sessionId)
   })
   ctx.on('agent/turn-stopping', async function (payload) {
     const session = payload.agent && payload.agent.session
@@ -137,7 +138,7 @@ export function registerTurnLifecycleHooks({
     // The final reminder goes after those sections, so their length cannot bury
     // the one contract that must be the last thing the model reads.
     const hasSubmission = (assembled.sections || []).some(section => section.name === 'tavern:story-tool-submission')
-    const outputToolCall = hasSubmission && typeof storyOutputToolCall === 'function' ? (await storyOutputToolCall()) === true : false
+    const outputToolCall = hasSubmission && storyToolCallEnabled(chat, typeof storyOutputToolCall === 'function' ? await storyOutputToolCall() : false)
     return prependSystemInstruction(appendStorySubmissionReminder(assembled, outputToolCall), chat ? runtimePrompt('system-append') : '')
   })
 }

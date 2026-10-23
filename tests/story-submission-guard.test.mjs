@@ -175,9 +175,12 @@ test('即时拒收后记录纠正指令，同回合最多重试五次；取消�
 
 test('结束校验仅保留拒收入档兜底，成功工具提交直接通过', async () => {
   const run = fixture()
-  const guard = createStorySubmissionGuard({ chatForSession: async () => run.state.chat, enabled: async () => run.state.enabled })
+  let visible = ['submit_story']
+  const guard = createStorySubmissionGuard({ chatForSession: async () => run.state.chat, enabled: async () => run.state.enabled, visibleTools: async () => visible })
   await assert.rejects(guard(run.payload(), { text: '不应入档' }), /普通文本已被拒收/)
   assert.equal(await guard(run.payload(), { text: '工具正文', storyToolSubmission: true }), false)
+  visible = []
+  assert.equal(await guard(run.payload(), { text: '本局已关闭提交工具' }), false)
   run.state.enabled = false
   assert.equal(await guard(run.payload(), { text: '普通正文' }), false)
 })

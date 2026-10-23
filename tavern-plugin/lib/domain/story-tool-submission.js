@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { sessionEvents } from './session-events.js'
 import { createSessionSurfaceMutator } from './session-surface-mutations.js'
 import { toolResultsOf } from './tool-result-message.js'
+import { producerSource } from './message-source.js'
+import { isTurnInput } from './session-turn-input.js'
 
 export const STORY_SUBMIT_TOOL_NAME = 'submit_story'
 export const STORY_SUBMIT_MAX_CORRECTIONS = 5
@@ -77,8 +79,7 @@ export function appendStorySubmissionReminder(assembly, outputEnabled) {
   return { ...assembly, sections: [...sections, { name: 'tavern:story-tool-submission-reminder', text: STORY_SUBMIT_REMINDER }] }
 }
 
-/** A Tavern settings switch; it applies to story and script play only. */
-/** Legacy split choices merge like the global settings: either enabled means on. */
+/** Preserve legacy per-conversation choices: either enabled means on. */
 export function storyToolCallSelection(chat) {
   if (chat?.storyToolCall === true || chat?.storyHistoryToolCall === true) return true
   if (chat?.storyToolCall === false || chat?.storyHistoryToolCall === false) return false
@@ -92,12 +93,13 @@ export function storyToolCallEnabled(chat, enabled) {
 }
 
 /** Last save barrier if a host bypasses the streaming guard. No plain-text fallback. */
-export function createStorySubmissionGuard({ chatForSession, enabled }) {
+export function createStorySubmissionGuard({ chatForSession, enabled, visibleTools }) {
   return async function requireSubmission(payload, assistant) {
     if (!assistant?.text || assistant.storyToolSubmission) return false
     payload.signal?.throwIfAborted()
     const chat = await chatForSession(payload.agent.session.id)
     if (chat?.requestMode === 'sillytavern' || !storyToolCallEnabled(chat, await enabled())) return false
+    if (visibleTools && !(await visibleTools(payload.agent.session.id)).includes(STORY_SUBMIT_TOOL_NAME)) return false
     payload.signal?.throwIfAborted()
     const error = new Error('模型未调用 submit_story 提交正文，普通文本已被拒收；请重新生成。')
     error.code = 'story-tool-required'

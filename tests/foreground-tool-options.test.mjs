@@ -17,6 +17,7 @@ for (const global of [false, true]) for (const [name, flags, local] of choices) 
       modeFor: async () => 'story', filterMessages: value => value, resolvePreset: async () => null,
       prepareTurn: async () => ({ frame: { userInput: { projectedText: '当前输入' } } }),
       appendFrame: ({ messages }) => ({ messages, receipt: {} }), recordFrame() {},
+      storyOutputToolCall: async () => global,
       historyToolCall: async () => { globalReads++; return global }
     })
     const chat = { mode: 'story', ...flags }
@@ -37,7 +38,7 @@ for (const global of [false, true]) for (const [name, flags, local] of choices) 
     await strategy.prepareStep({ sessionId: 'session', chat, payload: { turn: 2, step: 1, messages }, decision: { kind: 'enter', messages } })
     const result = strategy.projectRequest({ sessionId: 'session', system: '', messages })
     if (local ?? global) {
-      assert.deepEqual(result.messages.map(row => row.role), ['user', 'assistant', 'tool', 'assistant', 'tool', 'user'])
+      assert.deepEqual(result.messages.map(row => row.role), ['user', 'assistant', 'tool', 'assistant', 'tool', 'assistant', 'user'])
       assert.equal(result.messages[3].content[0].name, 'submit_story')
       assert.deepEqual(JSON.parse(result.messages[3].content[0].arguments), { content: '之前正文' })
       assert.deepEqual(result.messages.at(-1), messages.at(-1))
@@ -46,3 +47,24 @@ for (const global of [false, true]) for (const [name, flags, local] of choices) 
     assert.deepEqual(messages, before)
   })
 }
+
+// Only mixed global choices are new; the existing matrix covers uniform defaults.
+test('两个全局开关独立生效，本局覆盖同时控制历史、确认消息和输出协议', async () => {
+  for (const [input, output] of [[true, false], [false, true]]) for (const local of [null, false, true]) {
+    const stagedRequests = new Map()
+    const chat = { mode: 'story', ...(local === null ? {} : { storyToolCall: local }) }
+    const offered = local ?? (input || output)
+    const strategy = createNativePlayOrchestrationStrategy({
+      stagedRequests, modeFor: async () => 'story', filterMessages: value => value, resolvePreset: async () => null,
+      historyToolCall: async () => input, storyOutputToolCall: async () => output,
+      visibleTools: async () => offered ? ['submit_story'] : [], controlledToolNames: new Set(['submit_story'])
+    })
+    await strategy.prepareStep({ sessionId: 'game', chat, payload: { turn: 2, step: 2 }, decision: { messages: [] } })
+    assert.equal(stagedRequests.get('game').historyToolCall, local ?? input)
+    assert.equal(stagedRequests.get('game').storyOutputToolCall, local ?? output)
+    const assembled = await strategy.assembleSystemPrompt({ tools: [{ name: 'submit_story' }] }, { sessionId: 'game', chat })
+    const policy = assembled.sections.find(section => section.name === 'tavern:story-tool-submission')
+    if (offered) assert.match(policy.text, (local ?? output) ? /本轮所有面向玩家的输出/ : /本轮请直接输出正文/)
+    else assert.equal(policy, undefined)
+  }
+})

@@ -494,7 +494,7 @@ export function createNativePlayOrchestrationStrategy(options) {
     // The strict wording is only true when submit_story is the single tool.
     if (playMode) {
       const toolNames = new Set(assembly.tools.map(schema => schema.name))
-      const outputToolCall = typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false
+      const outputToolCall = storyToolCallSelection(input.chat) ?? (typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false)
       if (toolNames.has(STORY_SUBMIT_TOOL_NAME)) {
         if (outputToolCall) {
           sections.push({ name: 'tavern:story-tool-submission', text: toolNames.size === 1 ? STORY_SUBMIT_PROMPT_STRICT : STORY_SUBMIT_PROMPT })
