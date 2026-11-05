@@ -2144,7 +2144,7 @@ export async function apply(ctx) {
       const versions = await Promise.all([...paths].map(path => profileData.version('resources/' + path)))
       // machine-local mute changes invalidate the cached helper-script view.
       // The stage runtime state too: view.stage (readCardStageMode) has no stage until the runtime is there.
-      return JSON.stringify([binding, versions, await profileData.version('tavern-extension-settings.json'), await profileData.version('prompt-template-variables.json'), await cardScripts.version(chat.cardPath), stageRuntime.status()])
+      return JSON.stringify([binding, versions, worldBooks.revision(), await profileData.version('tavern-extension-settings.json'), await profileData.version('prompt-template-variables.json'), await cardScripts.version(chat.cardPath), stageRuntime.status()])
     },
     readChanges: chatPersistence.readChangedIndices,
     readViewDelta: chatPersistence.readViewDelta,

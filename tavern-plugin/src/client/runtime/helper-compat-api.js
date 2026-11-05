@@ -72,7 +72,11 @@ function installTavernHelperCompatibilityApi({ window: w, context, request, inst
     const nativeLegacy = Object.fromEntries(['getLorebookEntries', 'setLorebookEntries', 'createLorebookEntries', 'deleteLorebookEntries'].map(name => [name, w[name]]));
     const nativeBookName = () => state().worldbook?.name || null;
     const bookKey = name => String(name === 'current' ? nativeBookName() || 'current' : name || nativeBookName() || 'current');
-    const isNativeBook = name => nativeBookName() ? bookKey(name) === nativeBookName() : !own(library().books, bookKey(name));
+    const isNativeBook = name => {
+        const key = bookKey(name);
+        if (key === nativeBookName() || nativeBooks.getWorldbookNames?.().includes(key)) return true;
+        return !nativeBookName() && !own(library().books, key);
+    };
     const normalizeEntries = entries => {
         const seen = new Set();
         return list(entries).map((entry, index) => {
@@ -88,16 +92,16 @@ function installTavernHelperCompatibilityApi({ window: w, context, request, inst
     };
     expose('getWorldbookNames', () => [...new Set([...(nativeBooks.getWorldbookNames?.() || []), ...Object.keys(library().books)])], 'hybrid', true);
     expose('getWorldbook', async name => {
-        if (isNativeBook(name) && nativeBooks.getWorldbook) return nativeBooks.getWorldbook(nativeBookName() || name);
+        if (isNativeBook(name) && nativeBooks.getWorldbook) return nativeBooks.getWorldbook(bookKey(name));
         return copy(library().books[bookKey(name)] || []);
     }, 'hybrid', true);
     expose('replaceWorldbook', async (name, entries) => {
-        if (isNativeBook(name) && nativeBooks.replaceWorldbook) return nativeBooks.replaceWorldbook(nativeBookName() || name, entries);
-        if (isNativeBook(name) && nativeBooks.updateWorldbookWith) return nativeBooks.updateWorldbookWith(nativeBookName() || name, () => entries);
+        if (isNativeBook(name) && nativeBooks.replaceWorldbook) return nativeBooks.replaceWorldbook(bookKey(name), entries);
+        if (isNativeBook(name) && nativeBooks.updateWorldbookWith) return nativeBooks.updateWorldbookWith(bookKey(name), () => entries);
         library().books[bookKey(name)] = normalizeEntries(entries); save();
     }, 'hybrid', true);
     expose('updateWorldbookWith', async (name, updater) => {
-        if (isNativeBook(name) && nativeBooks.updateWorldbookWith) return nativeBooks.updateWorldbookWith(nativeBookName() || name, updater);
+        if (isNativeBook(name) && nativeBooks.updateWorldbookWith) return nativeBooks.updateWorldbookWith(bookKey(name), updater);
         return await update(await w.getWorldbook(name), updater, async next => { await w.replaceWorldbook(name, next); return await w.getWorldbook(name); });
     }, 'hybrid', true);
     expose('createWorldbook', async (name, entries = []) => {

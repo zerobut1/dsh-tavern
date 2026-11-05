@@ -120,6 +120,24 @@ test('World Book Library 通过来源 adapter 原子编辑、导入、导出和�
   assert.deepEqual(run.removed, ['worldbooks/海港.json'])
 })
 
+test('按名称创建独立世界书，并发或重名不覆盖、不改变绑定或全局启用', async () => {
+  const { library, files, bindings, cards } = harness()
+  const before = clone([...cards])
+  assert.deepEqual(await Promise.all([library.create('开局人物'), library.create('开局人物')]), [true, false])
+  assert.deepEqual(await library.names(), ['王都', '开局人物'])
+  const record = await library.named('开局人物')
+  assert.equal(record.source.path, 'worldbooks/开局人物.json')
+  await library.update(record.source, { operations: [{ op: 'add', entry: { content: '保留的设定' } }] })
+  assert.equal(await library.create('开局人物'), false)
+  assert.equal((await library.named('开局人物')).view.entries[0].content, '保留的设定')
+  assert.equal((await library.get(record.source)).globalEnabled, false)
+  assert.equal(bindings.size, 0)
+  assert.deepEqual([...cards], before)
+  for (const name of ['../覆盖', '路径/越界', '坏\\名称']) await assert.rejects(library.create(name))
+  assert.equal(await library.create(''), false)
+  assert.equal(files.size, 2)
+})
+
 test('删除内置世界书清理所有引用并保留其他世界书和人物卡内容', async () => {
   const run = harness()
   const source = { kind: 'card', cardPath: 'cards/命运.json' }

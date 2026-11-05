@@ -901,6 +901,7 @@ window.__ModuleLoader__.load({
 // @include modules/host-theme.js
 
 // @include runtime/helper-facade.js
+// @include runtime/helper-worldbook-creation.js
 
         // Bounded, value-free timings shared by every card's initialization.
 // @include runtime/helper-bootstrap.js

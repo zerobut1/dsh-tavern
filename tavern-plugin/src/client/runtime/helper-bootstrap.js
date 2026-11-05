@@ -135,7 +135,7 @@
                             && Number(incoming.stateRevision || 0) < Number(state.stateRevision || 0)))) return;
 					if (incoming) { state = Object.assign({}, state, copy(incoming)); state.messages = modules.applyVariableReceipt.indexApi.from(state.messages || []); if (!incoming.transaction) delete state.transaction; }
 					// Version-only and patch replies are merged by the worldbook API itself.
-					if (result.worldbook && Array.isArray(result.worldbook.entries)) state.worldbook = copy(result.worldbook);
+					if (result.worldbook && result.worldbook.name === state.worldbook?.name && Array.isArray(result.worldbook.entries)) state.worldbook = copy(result.worldbook);
 					// Chat-data saves acknowledge their own submitted snapshot separately.
 					if (incoming && facade && method !== "saveTavernChatData") facade.sync(state);
 				},
@@ -549,7 +549,7 @@
 				});
 				if (result && result.stale) throw new Error("聊天已变化，消息未创建");
 			};
-			window.getWorldbookNames = function () { return state.worldbook && state.worldbook.name ? [state.worldbook.name] : []; };
+            window.getWorldbookNames = function () { return (state.worldbookNames || []).concat(state.worldbook?.name ? [state.worldbook.name] : []); };
 			window.getCharWorldbookNames = function () { return { primary: state.worldbook && state.worldbook.name || null, additional: [] }; };
 			// Global and extra bound books reach scripts merged into the game's one book; there is no separate chat book.
 			window.getGlobalWorldbookNames = function () { return []; };
@@ -563,7 +563,8 @@
                     if (state.worldbook?.resourceAccess?.token === access.token) state.worldbook = copy(book);
                     return copy(book && book.entries || []);
                 }
-				return await freshWorldbook(name);
+				const result = await call("getTavernHelperWorldbook", { name: name });
+                return copy(result.worldbook?.entries || []);
 			};
 			function legacyWorldbookEntry(entry, index) {
 				const extra = entry.extra || {};
@@ -622,6 +623,10 @@
 			}
 			// Send only the entries that differ from the version read; a large book is not uploaded again.
 			async function writeWorldbook(name, entries, current, version) {
+                if (!state.worldbook || name !== "current" && name !== state.worldbook.name) {
+                    const result = await call("replaceTavernHelperWorldbook", { name: name, entries: worldbookPayload(entries), expectedEntries: current });
+                    return copy(result.worldbook?.entries || []);
+                }
 				const next = worldbookPayload(entries), before = new Map(), seen = new Set(), upserts = [];
 				for (const entry of current) before.set(String(entry.uid), JSON.stringify(entry));
 				for (const entry of next) {
@@ -640,6 +645,10 @@
 				return fullWorldbook({ name: book.name, version: book.version, entries: written });
 			}
 			async function freshWorldbook(name) {
+                if (!state.worldbook || name !== "current" && name !== state.worldbook.name) {
+                    const result = await call("getTavernHelperWorldbook", { name: name });
+                    return copy(result.worldbook?.entries || []);
+                }
 				const held = state.worldbook && state.worldbook.name === name && state.worldbook.version && Array.isArray(state.worldbook.entries) ? state.worldbook : null;
 				const result = await call("getTavernHelperWorldbook", held ? { name: name, knownVersion: held.version } : { name: name });
 				if (held && result.worldbook && result.worldbook.unchanged && result.worldbook.version === held.version) { state.worldbook = held; return copy(held.entries); }
@@ -647,11 +656,11 @@
 			}
 			window.replaceWorldbook = async function (name, entries) {
 				const current = await freshWorldbook(name);
-				await writeWorldbook(name, entries, current, state.worldbook.version);
+				await writeWorldbook(name, entries, current, state.worldbook?.version);
 			};
 			window.updateWorldbookWith = async function (name, updater) {
 				if (typeof updater !== "function") throw new TypeError("世界书更新器必须是函数");
-				const current = await freshWorldbook(name), version = state.worldbook.version, draft = copy(current);
+				const current = await freshWorldbook(name), version = state.worldbook?.version, draft = copy(current);
 				const next = await updater(draft);
 				return await writeWorldbook(name, next === undefined ? draft : next, current, version);
 			};
@@ -687,6 +696,7 @@
 				return { entries: result.worldbook.map(legacyWorldbookEntry), delete_occurred: result.deleted_entries.length > 0 };
 			};
 			window.getLorebooks = window.getWorldbookNames;
+            modules.installWorldbookCreation({ window: window, call: call, legacyWorldbookPatch: legacyWorldbookPatch });
 			window.getCharLorebooks = async function () { return window.getCharWorldbookNames(); };
 			window.getCurrentCharPrimaryLorebook = function () { return window.getCharWorldbookNames().primary; };
 			window.getLorebookSettings = function () { return copy(lorebookSettings); };

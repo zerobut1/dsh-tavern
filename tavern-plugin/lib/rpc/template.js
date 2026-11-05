@@ -154,6 +154,9 @@ export function createTemplateHandlers(deps) {
     async patchTavernHelperWorldbook(args) {
       return await tavernScriptHostAdapter.patchWorldbook(args && args.sessionId, args && args.name, args && args.patch)
     },
+    async createTavernHelperWorldbook(args) {
+      return await tavernScriptHostAdapter.createWorldbook(args && args.sessionId, args && args.name)
+    },
     async replaceTavernHelperWorldbook(args) {
       return await tavernScriptHostAdapter.replaceWorldbook(args && args.sessionId, args && args.name, args && args.entries, args && args.expectedEntries)
     },

@@ -167,7 +167,8 @@ test('message-frame regex editing, macros and legacy worldbook entry aliases hav
   assert.equal(w.substitudeMacros('<count>', { message_id: 2 }), '2:<count>')
   macro.unregister()
   assert.equal(w.substitudeMacros('<count>'), '<count>')
-  await w.createLorebook('Legacy')
+  // Local compatibility book; persisted createLorebook is covered by helper-worldbook-creation.
+  await w.createWorldbook('Legacy')
   const added = await w.createLorebookEntries('Legacy', [{ comment: 'A', content: 'text', type: 'constant' }])
   await w.updatelorebookEntriesWith('Legacy', entries => { entries[0].content = 'updated'; return entries })
   assert.equal((await w.getLorebookEntries('Legacy'))[0].content, 'updated')

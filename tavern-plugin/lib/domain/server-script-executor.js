@@ -17,7 +17,7 @@ const ALLOWED_METHODS = new Set([
   'claimTavernScriptWork', 'startTavernScriptWork', 'getTavernScriptWorkState', 'heartbeatTavernScriptRuntime',
   'completeTavernHelperEvent', 'releaseTavernHelperRuntime',
   'updateTavernHelperPrompts', 'updateTavernHelperVariables', 'updateTavernHelperMessages', 'createTavernHelperMessages',
-  'getTavernHelperWorldbook', 'replaceTavernHelperWorldbook', 'patchTavernHelperWorldbook', 'loadTavernWorldInfo',
+  'getTavernHelperWorldbook', 'createTavernHelperWorldbook', 'replaceTavernHelperWorldbook', 'patchTavernHelperWorldbook', 'loadTavernWorldInfo',
   'generateTavernHelper', 'generateTavernHelperRaw', 'stopTavernHelperGeneration', 'stopAllTavernHelperGeneration',
   'recordMvuRuntimeDiagnostic', 'recordTavernCompatibilityCalls', 'saveTavernExtensionSettings', 'saveTavernWorldInfo', 'saveTavernChatData',
   'getFullPromptTemplateState', 'releaseFullTemplateRuntime', 'heartbeatFullTemplateRuntime', 'claimFullTemplateWork', 'completeFullTemplateWork'
