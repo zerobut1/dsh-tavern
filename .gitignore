@@ -63,3 +63,4 @@ __pycache__/
 # 根目录临时输出与一次性脚本
 /out_*.txt
 /raw.mjs
+.kimix_cache
