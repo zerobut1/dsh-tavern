@@ -2912,6 +2912,10 @@ export async function apply(ctx) {
       if (!target) throw new Error('分叉目标原生会话尚未就绪')
       if (storyDirect) assertBlankStoryForkTarget(targetId, target)
       else {
+        const targetAgent = agentRegistry.get(targetId) || targetHandle?.agent
+        if (!targetAgent || targetAgent.phase?.kind !== 'idle') throw new Error('分叉目标尚未空闲，已拒绝绑定游戏状态')
+        // Native forks can inherit the source's queued input after turn/end.
+        targetAgent.inbox.clear()
         const targetEnd = sessionEvents(target).findLast(event => event.type === 'turn/end')
         if (!targetEnd || targetEnd.seq !== atSeq) throw new Error('原生分叉没有停在指定回合，已拒绝绑定游戏状态')
       }
