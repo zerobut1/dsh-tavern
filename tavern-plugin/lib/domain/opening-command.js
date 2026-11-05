@@ -1,5 +1,3 @@
-import { mutateScriptPrompts } from './tavern-script-prompts.js'
-
 const TRIGGER_COMMAND_RE = /^\/trigger(?:\s+await=(?:true|false))?\s*$/i
 
 // This compiler operates on an uncommitted opening, never an existing timeline.
@@ -56,9 +54,7 @@ export function applyOpeningCommand(chat, command, variables, now) {
   const text = command.systemText
   chat.messages.push({ role: 'system', openingSetup: true, text, sourceText: text, ts: now(),
     swipeId: 0, swipes: [[text, initialization].filter(Boolean).join('\n\n')], variables: [structuredClone(variables || {})] })
-  mutateScriptPrompts(chat, { kind: 'inject', once: true, prompts: [{
-    id: 'dsh-opening-system', content: text, role: 'system', position: 'in_chat', depth: 0
-  }] })
+  // Native opening projection keeps this setup in durable history.
   if (command.removeGreeting && chat.mvu?.enabled && variables?.stat_data !== undefined && variables?.schema !== undefined) {
     chat.mvu.openingInitialization = { version: 2, status: 'complete', completedAt: now() }
   }

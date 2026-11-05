@@ -147,6 +147,12 @@ export function createOpeningPreparation({ readCard, worldBooks, generate, gener
     dispose() { generations.dispose(); drafts.clear() },
     async callRuntime(id, method, args = {}) {
       const draft = requireDraft(id)
+      if (method === 'getTavernHelperContext') {
+        // Each greeting preview starts a fresh runtime. Select its actual swipe
+        // and read the current draft before MVU or the wizard reads variables.
+        if (args.openingId) this.select(id, args.openingId)
+        return { context: projectTavernHelperContext(draft.chat) }
+      }
       if (method === 'stopTavernHelperGeneration') return { stopped: generations.stop(draft.chat.sessionId, args.generationId, { generationToken: args.generationToken, pending: args.pending }) }
       if (method === 'stopAllTavernHelperGeneration') return { stopped: true, generationIds: generations.stopAll(draft.chat.sessionId, args.pendingGenerations) }
       if (method === 'generateTavernHelperRaw' || method === 'generateTavernHelper') {

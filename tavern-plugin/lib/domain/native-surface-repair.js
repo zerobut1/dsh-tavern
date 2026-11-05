@@ -3,7 +3,7 @@ import { createSessionSurfaceMutator } from './session-surface-mutations.js'
 import { createRoundAnchorResolver, roundAnchor, validAnchor } from './round-anchor.js'
 import { isCompactionCheckpoint } from './compaction-checkpoint.js'
 import { isTurnInput } from './session-turn-input.js'
-import { nativeOpeningMessageId } from './native-opening.js'
+import { nativeOpeningMessageId, openingNarration } from './native-opening.js'
 import { RETAINED_STORY_ROUNDS } from './story-compaction.js'
 
 // The Chat is the save; the native surface is its projection (Wiki「设计：native-session-repair」).
@@ -18,8 +18,12 @@ function textOf(content) {
 
 function chatRounds(chat) {
   const rounds = []
+  const narration = openingNarration(chat)
+  if (narration) rounds.push({ messageIndex: narration.indices.at(-1), turn: 1, greeting: true,
+    openingNarration: true, userText: null, replyText: narration.text, texts: new Set([narration.text.trim()]) })
   let pending = null
   for (const [index, message] of (chat.messages || []).entries()) {
+    if (narration && index <= narration.indices.at(-1)) continue
     if (message?.role === 'user') {
       // Only the last adjacent user can pair with the next reply. Earlier users are
       // story messages in their own right, not lines to merge into that reply's input.
@@ -139,6 +143,17 @@ export function planNativeSurfaceRepair({ chat, events = [], nodes = [] }) {
   const residue = seq => isStoryResidue(bySeq.get(seq)) && ended.get(turnOfSeq.get(seq)) === 'completed'
   // Keeping every node and writing nothing is no repair at all.
   const plan = (status, keep, rewrite) => ({ status: !rewrite.length && keep >= nodes.length ? 'intact' : status, keep, rounds: rewrite, checkpoint })
+  // Older /sys openings lived only in the Chat and a consumed one-shot Frame.
+  // An intact latest round cannot prove that opening exists. Restore it before
+  // the story, preserving the fixed prefix. Compacted history stays compacted.
+  if (checkpoint < 0 && rounds[0]?.openingNarration) {
+    const index = nodes.findIndex(seq => bySeq.get(seq)?.data?.message?.id === openingId)
+    if (index < 0 || textOf(at(index)?.data?.message?.content).trim() !== rounds[0].replyText.trim()) {
+      let keep = 0
+      while (keep < nodes.length && isPrefixNode(at(keep), openingId)) keep++
+      return plan('full', keep, rounds)
+    }
+  }
   // A deleted middle row can leave the last reply intact, so the ordinary last-intact
   // shortcut is insufficient for an unpaired history. Walk every such unit and treat
   // completed story between two matched units as the deleted rows' stale projection.

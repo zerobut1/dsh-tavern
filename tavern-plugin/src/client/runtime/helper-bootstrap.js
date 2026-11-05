@@ -861,7 +861,8 @@
 			modules.installCompatibilityApi({window, context: () => state, request: call, installPromptApi: modules.installPromptApi});
 			const ready = Promise.all([
 				import(new URL("/api/dsh-tavern/vendor/runtime-assets/zod/index.mjs",document.baseURI).href),
-				import(new URL("/api/dsh-tavern/vendor/runtime-assets/yaml/index.mjs",document.baseURI).href)
+				import(new URL("/api/dsh-tavern/vendor/runtime-assets/yaml/index.mjs",document.baseURI).href),
+                metadata.previewOpeningId ? call("getTavernHelperContext", { openingId: metadata.previewOpeningId }) : null
 			]).then(function (modules) { window.z = modules[0]; window.YAML = modules[1]; return true; });
 			window.__dshTavernHelperReady = ready;
 			void ready.catch(function (error) {

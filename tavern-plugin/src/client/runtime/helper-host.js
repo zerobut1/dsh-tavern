@@ -285,6 +285,7 @@
 				: (input && input.script ? [input.script] : []);
 			const metadata = {
 				token: String(input && input.token || ""),
+                previewOpeningId: input && input.previewOpeningId || "",
 				officialMvu: scripts.some(function (script) { return script && script.system === "official-mvu"; }),
 				scripts: scripts.map(function (script) {
 					return {

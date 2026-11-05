@@ -80,7 +80,10 @@ export function createStoryReconciliation({ agentRegistry, sessionStore, chatFor
     let header, rows
     if (head?.chat) {
       const total = Number(head.messageCount) || 0, want = Math.min(total, nativeCount * 3 + 20)
-      const selected = want ? await chatSliceForSession(sessionId, Array.from({ length: want }, (_, index) => total - want + index), []) : null
+      // The leading greeting and /sys narrator may be absent from an otherwise
+      // intact native tail. Read those two small floors alongside that tail.
+      const indices = [...new Set([0, 1, ...Array.from({ length: want }, (_, index) => total - want + index)])].filter(index => index < total).sort((a, b) => a - b)
+      const selected = want ? await chatSliceForSession(sessionId, indices, []) : null
       header = head.chat
       rows = selected?.chat?.messages || []
     } else {

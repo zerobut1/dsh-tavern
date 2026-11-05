@@ -1,6 +1,6 @@
 import { applyOpeningCommand } from './opening-command.js'
 import { ensureOpeningTurn, releaseOpeningTurn, sessionEvents, appendSessionEvent } from './session-events.js'
-import { nativeOpeningMessageId } from './native-opening.js'
+import { nativeOpeningMessageId, openingNarration } from './native-opening.js'
 import { cardOpeningChoices, resolveCardOpening } from './card-openings.js'
 import { projectAgentContent, projectOpeningCommit } from './runtime-content-projection.js'
 import { OFFICIAL_MVU_VERSION } from './official-mvu-assets.js'
@@ -289,6 +289,8 @@ export function createConversationInitialization(options) {
 
   function openingText(chat, card) {
     if ((chat.mode || 'story') === 'card') return ''
+    const narration = openingNarration(chat)
+    if (narration) return narration.text
     if (typeof chat.openingText === 'string') return chat.openingText
     const greeting = Array.isArray(chat.messages) ? chat.messages.find(message => message && message.greeting === true && typeof message.text === 'string') : undefined
     if (greeting !== undefined) return greeting.text

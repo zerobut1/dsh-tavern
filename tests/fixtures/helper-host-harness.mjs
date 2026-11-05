@@ -6,7 +6,7 @@ import { TAVERN_COMPATIBILITY_CAPABILITIES } from '../../tavern-plugin/lib/domai
 let descriptor
 vm.runInNewContext(await readFile(new URL('../../tavern-plugin/lib/client.js', import.meta.url), 'utf8'), {
   // this Node harness has no presentation document or animation loops.
-  window: { forkForeground: { now: Date.now, setInterval, clearInterval }, __ModuleLoader__: { load(value) { descriptor = value } } }, console
+  window: { addEventListener() {}, forkForeground: { now: Date.now, setInterval, clearInterval }, __ModuleLoader__: { load(value) { descriptor = value } } }, console
 })
 export const helperClient = descriptor.factory(() => ({}))
 
@@ -15,7 +15,7 @@ export function helperHostHarness(context = {}, options = {}) {
   const frameStorage = options.localStorage ? { token: 'storage-test', namespace: '', seed: Object.fromEntries(
     Array.from({ length: options.localStorage.length }, (_, i) => { const key = options.localStorage.key(i); return [key, options.localStorage.getItem(key)] })
   ) } : null
-  const html = helperClient.buildTavernHelperScriptDocument({ token: 'host-test', scripts, frameStorage, context: { compatibilityCapabilities: TAVERN_COMPATIBILITY_CAPABILITIES, ...context } })
+  const html = helperClient.buildTavernHelperScriptDocument({ token: 'host-test', scripts, frameStorage, previewOpeningId: options.previewOpeningId, context: { compatibilityCapabilities: TAVERN_COMPATIBILITY_CAPABILITIES, ...context } })
   let source = html.match(/<script data-dsh-tavern-helper-script>([\s\S]*?)<\/script>/)[1]
   const downloads = [
     'import(new URL("/api/dsh-tavern/vendor/runtime-assets/zod/index.mjs",document.baseURI).href)',

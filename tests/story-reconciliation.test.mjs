@@ -50,3 +50,16 @@ test('a failed native repair marks the save stale once, for the next open to ret
   assert.equal(h.saved().nativeSync.reason, '正文不一致')
   assert.deepEqual(h.writes, ['native-repair.stale', 'native-repair.stale'], 'the second mark finds it already stale and writes nothing new')
 })
+
+test('bounded reconciliation also reads the opening narrator outside its recent window', async () => {
+  const session=Session.create('story'), reads=[]
+  const rows=[{role:'system',text:'开局资料：灵根火'},...Array.from({length:50},()=>({role:'tavern-helper',text:'插件记录'}))]
+  const header={id:'game',mode:'story'}
+  const service=createStoryReconciliation({agentRegistry:new Map(),sessionStore:new Map([['story',session]]),
+    chatForSession:async()=>assert.fail('a read-only check needs no full history'),
+    chatSliceForSession:async(_id,indices)=>{reads.push(indices);return{chat:{...header,messages:indices.map(i=>rows[i])},messageCount:rows.length}},
+    updateChat:async()=>assert.fail('read-only'),turns:{}})
+  const report=await service.reconcileStory('story',{repair:false})
+  assert.equal(report.textDrift,true,'missing opening is detected even when no recent story disagrees')
+  assert.deepEqual(reads,[[],[0,1,...Array.from({length:20},(_,i)=>31+i)]])
+})
