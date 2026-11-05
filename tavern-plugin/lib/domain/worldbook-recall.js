@@ -3,6 +3,7 @@ import { worldbookPlacement } from './worldbook-placement.js'
 import { entryRandom, renderWorldbookRandom } from './worldbook-random.js'
 import { projectAgentContent } from './runtime-content-projection.js'
 import { lastTavernHelperVariables } from './tavern-helper-context.js'
+import { renderTavernHelperVariableMacros } from './tavern-helper-variable-macros.js'
 import { activateWorldBook, promptOrder, worldBookSettings } from './worldbook-activation.js'
 import { isMvuUpdateEntry } from './worldbook-mvu-entry.js'
 
@@ -255,7 +256,13 @@ export async function projectWorldBookTemplates(input = {}) {
     if (!useBatch || input.renderCache) scopes = clone(result.scopes)
     // Foreground capability entries (foreground-capabilities.js) are already final text: never projected or cached.
     const projected = input.includeConstants === true && entry.foregroundCapability !== true
-      ? projectAgentContent(renderWorldbookRandom(result.text, random), { charName: str(input.card?.name), macroState }) : null
+      ? projectAgentContent(renderWorldbookRandom(renderTavernHelperVariableMacros(result.text, {
+          message: scopes.message,
+          chat: scopes.local,
+          character: input.card?.extensions?.tavern_helper?.variables,
+          preset: input.chat?.runtimePresetSnapshot?.variables,
+          global: scopes.global
+        }).text, random), { charName: str(input.card?.name), macroState }) : null
     if (projected) macroState = projected.macroState
     const text = str(entry.foregroundCapability === true ? entry.content : input.randomOutputs?.[entry.ref] ?? (projected ? projected.agentText : result.text)).trim()
     if (entry.foregroundCapability !== true) input.renderCache?.set(entry.ref, { text, beforeScopes, beforeMacroState, scopes: clone(result.scopes || scopes), macroState: clone(macroState), activationRequests: entryActivations, readerState, effectful: !dependencies || /\{\{|<%/.test(JSON.stringify(readerState)) })
