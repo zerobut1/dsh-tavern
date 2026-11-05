@@ -107,6 +107,7 @@ import { createSessionInventory } from './domain/session-inventory.js'
 import { createSessionViewSync } from './domain/session-view-sync.js'
 import { createCharacterDesignPublisher } from './domain/character-design-worldbook.js'
 import { createManualCharacterDesign } from './domain/manual-character-design.js'
+import { createBackgroundCommand } from './domain/background-command.js'
 import { prepareTemplateHistory, synchronizeTemplateHistory } from './domain/template-history.js'
 import { createServerTemplateSync } from './domain/server-template-sync.js'
 import { createServerTemplateRuntime } from './domain/server-template-runtime.js'
@@ -2567,6 +2568,21 @@ export async function apply(ctx) {
     diagnostics: mvuDiagnostics,
     characterDesign: characterDesignDocuments
   })
+  const backgroundCommand = createBackgroundCommand({
+    store: { chatForSession, updateChat }, selection: backgroundModelSelection,
+    beginTask: async (chat, sessionId) => {
+      if (agentRegistry.get(sessionId)?.phase?.kind === 'running' || chat.regenInProgress) throw new Error('前台正在生成，请完成后再发送后台指令。')
+      return backgroundTasks.begin(chat, 'command')
+    },
+    settle: input => mvuSettlement.settleVariables(input),
+    prepare: async (chat, target) => {
+      if (!agentRegistry.get(chat.sessionId)?.session) await agentRegistry.resume({ resumeSessionId: chat.sessionId })
+      const card = await readChatCard(chat)
+      return { storyText: projectAgentMessageText(chat.messages[target.messageId], { charName: card?.name, macroState: chat.macroState }),
+        updateRules: await mvuUpdateRules(chat, card), guides: chat.guides || [],
+        charName: card?.name, macroState: chat.macroState, turn: settlementTurn(chat) }
+    }
+  })
   ctx.effect(() => () => backgroundAgentRunner.dispose(), 'dsh-tavern: dispose resident background agents')
   // Asset pictures come from an image plugin (tavern.imageProvider); Tavern keeps no image channels.
   const assetGeneration = createAssetGeneration({store:profileData, imageProvider:() => pluginApi.imageProviders()[0], getLibrary:() => ctx.get('assetLibrary'),
@@ -3328,7 +3344,7 @@ export async function apply(ctx) {
   }, 'dsh-tavern: reconcile deferred MVU settlement')
   const { stopBackground, retrySettlement, pullBackgroundCycle } = createSettlementControls({
     chatForSession, readOpeningWindow, projectOpeningWindow, view, readChatCard, backgroundTasks, storyTimeline,
-    patchChat, writeChat, queueSettlement, cancelSettlement, mvuSettlementEngine, pluginApi, backgroundAgentRunner
+    patchChat, writeChat, queueSettlement, cancelSettlement, mvuSettlementEngine, pluginApi, backgroundAgentRunner, backgroundCommand
   })
   // ---------- 卡片工作台：剧本素材与新卡创建 ----------
   async function sourceWindowOf(chat) {
@@ -3452,7 +3468,7 @@ export async function apply(ctx) {
   const { reconcileStory, reconcileWhenIdle, repairNativeStory } = storyReconciliation
   // 任务表 (domain/background-tasks.js): every background task is declared there once; this
   // hands it the services its tasks run on.
-  registerBackgroundTasks(workflow, { readTavernSettings, polishPrereview, announceCast,
+  registerBackgroundTasks(workflow, { readTavernSettings, polishPrereview, announceCast, backgroundCommand,
     gameTitles, saveMaintenance, pluginApi, candidateWorldbookPreparation, backgroundTasks, queueSettlement, settlementJobs, settlementRun })
   const foregroundHandoff = createForegroundHandoff({
     turns: turnOrchestrator,
@@ -3715,7 +3731,7 @@ export async function apply(ctx) {
 
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
   // paragraphSpeech: a paragraph's spoken line, the core's voice selection (the stage's clip export reads it).
-  const rpcDeps = { listGameSubagents, closeGameSubagents, readCardAssetExtension, frameStorage, worldbookSkillProvider, sessionDebugEvidence, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds, paragraphSpeech,
+  const rpcDeps = { backgroundCommand, listGameSubagents, closeGameSubagents, readCardAssetExtension, frameStorage, worldbookSkillProvider, sessionDebugEvidence, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds, paragraphSpeech,
     applicationUpdater, autoChoices, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog, storyEvents, workflow,
     backgroundConfigForSession, bindScript, bodyEditor, branchOrigin, callModel, candidateGenerator, candidateTasks, polishPrereview, polishRecords, polishReviewer, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload, messageDeletion,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardSummaries, cardTaskPrompts, castAssets,

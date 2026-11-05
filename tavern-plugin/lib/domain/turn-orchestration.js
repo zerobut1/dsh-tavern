@@ -932,7 +932,7 @@ export function createTurnOrchestrator(options) {
 
   async function visibleTools(sessionId) {
     // Every model call asks: mode, the web-search switch and the disabled tools live in the header.
-    const chat = store.headerForSession ? await store.headerForSession(sessionId, ['mode', 'cardPath', 'usedModTools', 'webSearchEnabled', 'disabledForegroundTools', 'worldbookStrategy', 'backgroundTasks'])
+    const chat = store.headerForSession ? await store.headerForSession(sessionId, ['mode', 'cardPath', 'usedModTools', 'storyToolCall', 'storyHistoryToolCall', 'webSearchEnabled', 'disabledForegroundTools', 'worldbookStrategy', 'backgroundTasks'])
       : await (store.stateForSession || store.chatForSession)(sessionId)
     if (chat === undefined || chat === null) return []
     const mode = chat.mode || 'story'

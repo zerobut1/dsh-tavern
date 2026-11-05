@@ -16,6 +16,7 @@ export function createSettlementControls(deps) {
     if (!operationId || activity.operationId !== operationId || (!activity.busy && activity.phase !== 'pending')) return view(chat, await readChatCard(chat))
     // Abort the provider request first; interrupted operations reject late commits.
     pluginApi.stopTasks(chat.sessionId)
+    deps.backgroundCommand?.stop(chat.id)
     backgroundAgentRunner.cancel(chat.sessionId)
     await cancelSettlement(chat.id, { wait: false })
     const stopped = await backgroundTasks.recover(chat, { operationId })

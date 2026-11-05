@@ -47,7 +47,8 @@ test('one table: registering it gives the scheduler each task\'s triggers and th
     polishPrereview: { start: id => calls.push(['polish', id]) },
     announceCast: id => calls.push(['bubbles', id]),
     backgroundTasks: { activity: () => ({ role: '', phase: 'idle' }) }, settlementJobs: { pending: () => calls.push(['settlement-wait']) },
-    settlementRun: { pluginTaskJob: () => calls.push(['plugin-wait']) } })
+    settlementRun: { pluginTaskJob: () => calls.push(['plugin-wait']) },
+    backgroundCommand: { wait: id => calls.push(['command-wait', id]) } })
   const jobs = Object.fromEntries(workflow.table().map(job => [job.id, job]))
   assert.deepEqual([jobs.settlement.flow, jobs.polish.task, jobs['game-title'].task, jobs['stage-director']], [true, 'polish', '', undefined])
   events.emit('reply-committed', { sessionId: 'game' })
@@ -55,7 +56,7 @@ test('one table: registering it gives the scheduler each task\'s triggers and th
   assert.deepEqual(calls, [['polish', 'game']], 'stage is off, bubbles follow the settled turn; settlement is the flow\'s')
   await workflow.beforeNextTurn({ id: 'chat' })
   await workflow.needs('candidate', { id: 'chat' })
-  assert.deepEqual(calls.slice(1), [['settlement-wait'], ['plugin-wait'], ['settlement-wait']])
+  assert.deepEqual(calls.slice(1), [['settlement-wait'], ['command-wait', 'chat'], ['plugin-wait'], ['settlement-wait']])
   assert.deepEqual(workflow.runs('game').map(run => [run.id, run.status]).sort(), [['polish', 'completed']])
   stop()
   assert.deepEqual(workflow.table(), [])

@@ -33,6 +33,11 @@ function definitions(deps) {
         if (activity.role === 'settlement' && (activity.phase === 'pending' || activity.phase === 'running')) await deps.queueSettlement(chat.id)
         await deps.settlementJobs.pending(chat.id)
       } },
+    { key: 'command', name: '后台指令', member: 'background',
+      does: '按玩家明确输入的指令更新当前 MVU 变量，不续写正文。',
+      reads: '玩家指令、当前变量与结构', writes: '当前回复上的 MVU 变量',
+      manual: ['点「后台指令」'], idleForeground: true, blocksNextTurn: true, lock: true,
+      wait: chat => deps.backgroundCommand.wait(chat.id) },
     { key: 'candidate', name: '生成选项', member: 'background',
       does: '为下一轮生成几条可选的行动或对白。',
       reads: '结算后的变量、最近剧情', writes: '候选项（对应当前这条回复）',
