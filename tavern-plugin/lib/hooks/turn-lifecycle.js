@@ -11,13 +11,14 @@ import { synchronizeTemplateHistory } from '../domain/template-history.js'
 import { turnRepliedByModel } from '../domain/story-alignment.js'
 import { isSurfaceEditTurn, sessionEvents } from '../domain/session-events.js'
 import { withVirtualWorldbook } from '../domain/worldbook-virtual-surface.js'
-import { appendStorySubmissionReminder } from '../domain/story-tool-submission.js'
+import { appendStorySubmissionReminder, createStorySubmissionGuard, storyToolCallEnabled } from '../domain/story-tool-submission.js'
 
 export function registerTurnLifecycleHooks({
   autoChoices,
   pluginBodyGeneration,
   reconcileWhenIdle,
   backgroundAgentRunner,
+  chatHeaderForSession,
   hookChatForSession,
   clearRuntimePresetRequestState,
   contentText,
@@ -41,6 +42,11 @@ export function registerTurnLifecycleHooks({
 }) {
   const hostTools = createHostToolPolicy(ctx)
 
+  const requireStorySubmission = createStorySubmissionGuard({
+    chatForSession: sessionId => chatHeaderForSession(sessionId, ['mode', 'requestMode', 'storyToolCall', 'storyHistoryToolCall']),
+    enabled: storyOutputToolCall,
+    visibleTools: sessionId => turnOrchestrator.visibleTools(sessionId)
+  })
   ctx.on('agent/turn-stopping', async function (payload) {
     const session = payload.agent && payload.agent.session
     if (session === undefined) return
@@ -74,6 +80,14 @@ export function registerTurnLifecycleHooks({
         message
       })
       throw new Error(message)
+    }
+    try {
+      if (await requireStorySubmission(payload, assistant)) return
+    } catch (error) {
+      if (error.code === 'story-tool-required') await turnOrchestrator.recordFailure({
+        sessionId, turn: payload.turn, requestId, code: error.code, message: error.message
+      })
+      throw error
     }
     const saved = await foregroundHandoff.finalize({
       sessionId,
@@ -155,7 +169,7 @@ export function registerTurnLifecycleHooks({
     const pluginContract = assembled.sections?.find(section => section.name === 'tavern:plugin-body-generation')
     if (pluginContract) assembled.sections = [...assembled.sections, { ...pluginContract, name: 'tavern:plugin-body-generation-reminder' }]
     const hasSubmission = (assembled.sections || []).some(section => section.name === 'tavern:story-tool-submission')
-    const outputToolCall = hasSubmission && typeof storyOutputToolCall === 'function' ? (await storyOutputToolCall()) === true : false
+    const outputToolCall = hasSubmission && storyToolCallEnabled(chat, typeof storyOutputToolCall === 'function' ? await storyOutputToolCall() : false)
     return markTavernSectionsLiteral(prependSystemInstruction(appendStorySubmissionReminder(assembled, outputToolCall), chat ? runtimePrompt('system-append') : ''))
   })
 }

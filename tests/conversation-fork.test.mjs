@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { assertConversationForkable } from '../tavern-plugin/lib/domain/conversation-fork.js'
+import { assertConversationForkable, forkConversationChat } from '../tavern-plugin/lib/domain/conversation-fork.js'
 
 function sourceChat() {
   return {
@@ -55,7 +55,6 @@ test('正文操作只在真有前台 Agent 推进时挡住导出：被打断的�
 })
 
 test('分叉只保留分叉点及之前的隐藏轮次记录：分叉后续用的原生轮号不会把新回复整轮隐藏', async () => {
-  const { forkConversationChat } = await import('../tavern-plugin/lib/domain/conversation-fork.js')
   const { foregroundSuppressedTurns } = await import('../tavern-plugin/lib/domain/rollback-surface.js')
   // Native turns 1–3 existed; turn 3 was rolled back, an aborted regeneration left 5,
   // and turn 2 was regenerated into synthetic turn 4.
@@ -72,4 +71,19 @@ test('分叉只保留分叉点及之前的隐藏轮次记录：分叉后续用�
   assert.equal(foregroundSuppressedTurns(fork, events).includes(5), false, 'the fork\'s next native turn 5 shows its reply')
   const unpruned = forkConversationChat(source, { chatId: 'chat-old', sessionId: 'session-old', id: prefix => prefix + '-x' })
   assert.equal(foregroundSuppressedTurns(unpruned, events).includes(5), true, 'without the fork point the stale entry would hide it')
+})
+
+test('分叉合并旧工具开关，历史分叉继承来源对话当前的统一选择', () => {
+  const source = { ...sourceChat(), storyToolCall: false, storyHistoryToolCall: true }
+  const before = structuredClone(source)
+  const options = { chatId: 'fork', sessionId: 'fork', id: prefix => prefix + '-x' }
+  const inherited = forkConversationChat(source, options)
+  assert.equal(inherited.storyToolCall, true)
+  assert.equal(Object.hasOwn(inherited, 'storyHistoryToolCall'), false)
+  for (const selected of [false, true, null]) {
+    const fork = forkConversationChat(source, { ...options, storyToolCall: selected })
+    assert.equal(fork.storyToolCall, selected ?? undefined)
+    assert.equal(Object.hasOwn(fork, 'storyHistoryToolCall'), false)
+  }
+  assert.deepEqual(source, before)
 })

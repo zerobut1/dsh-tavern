@@ -6,6 +6,7 @@ import { createStoryCompactionRequest, nativelyRetainedRounds, projectStoryReque
 import { installCompactionRequestProjection } from '../domain/compaction-request.js'
 import { installWorkspaceInstructionPresentation } from '../domain/workspace-instruction-presentation.js'
 import { presentModelError } from '../domain/model-error-presentation.js'
+import { storyStreamFailure } from '../domain/story-submission-stream.js'
 import { markRequestHandled, requestHandledBy } from '../domain/request-lineage.js'
 
 // Prompt prose source. Keys are stable; interpolation arguments are data.
@@ -230,6 +231,8 @@ export function registerModelStreamHooks({
         // A hung iterator must not hold the foreground/settlement release path.
         if (!exhausted && iterator?.return) void Promise.resolve().then(() => iterator.return()).catch(() => {})
         progress('end')
+        const rejected = storyStreamFailure(options)
+        if (rejected) { finish = { kind: 'error', failure: rejected }; failure = rejected.message }
         const completed = !failure && !options.signal?.aborted && finish && finish.kind !== 'error' && finish.kind !== 'aborted'
         replyObserver?.finish(completed)
         foregroundStrategies.completeRequest(options, completed)

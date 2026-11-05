@@ -2,16 +2,18 @@ import { bodyGenerationFailure } from './body-generation-failure.js'
 import { randomUUID, createHash } from 'node:crypto'
 import { sessionEvents } from './session-events.js'
 import { createSessionSurfaceMutator } from './session-surface-mutations.js'
+import { toolResultsOf } from './tool-result-message.js'
 import { producerSource } from './message-source.js'
 import { isTurnInput } from './session-turn-input.js'
-import { toolResultsOf } from './tool-result-message.js'
 
 export const STORY_SUBMIT_TOOL_NAME = 'submit_story'
 export const STORY_GENERATE_TOOL_NAME = 'tavern_generate_body'
+export const STORY_SUBMIT_MAX_CORRECTIONS = 5
 export const STORY_SUBMIT_PROMPT = [
   '<output_method>',
   '本轮所有面向玩家的输出都必须通过工具调用完成：最终输出必须调用 submit_story，完整放入 content 字符串参数。',
   '除已开放的其他工具调用外，不要输出任何普通文本、摘要、说明或收尾语；写在 content 之外的文字会被丢弃。',
+  '禁止输出任何普通文本或前后说明；一旦开始输出文本，请求会立即中止。完整正文只能通过 submit_story 成功提交。',
   '可以先使用已开放的其他工具查询资料；submit_story 必须是本轮最后一次工具调用。',
   '每轮只调用一次 submit_story；content 必须包含完整最终输出，保留全部标签、格式和内容要求，不要省略、缩写或用占位符代替。',
   '提交成功即结束本轮，不要再输出任何消息。',
@@ -79,9 +81,32 @@ export function appendStorySubmissionReminder(assembly, outputEnabled) {
   return { ...assembly, sections: [...sections, { name: 'tavern:story-tool-submission-reminder', text: STORY_SUBMIT_REMINDER }] }
 }
 
-/** A Tavern settings switch; it applies to story and script play only. */
+/** Preserve legacy per-conversation choices: either enabled means on. */
+export function storyToolCallSelection(chat) {
+  if (chat?.storyToolCall === true || chat?.storyHistoryToolCall === true) return true
+  if (chat?.storyToolCall === false || chat?.storyHistoryToolCall === false) return false
+  return null
+}
+
+/** Conversation overrides the global default; story and script play only. */
 export function storyToolCallEnabled(chat, enabled) {
-  return enabled === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
+  const selected = storyToolCallSelection(chat) ?? enabled
+  return selected === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
+}
+
+/** Last save barrier if a host bypasses the streaming guard. No plain-text fallback. */
+export function createStorySubmissionGuard({ chatForSession, enabled, visibleTools }) {
+  return async function requireSubmission(payload, assistant) {
+    if (!assistant?.text || assistant.storyToolSubmission) return false
+    payload.signal?.throwIfAborted()
+    const chat = await chatForSession(payload.agent.session.id)
+    if (chat?.requestMode === 'sillytavern' || !storyToolCallEnabled(chat, await enabled())) return false
+    if (visibleTools && !(await visibleTools(payload.agent.session.id)).includes(STORY_SUBMIT_TOOL_NAME)) return false
+    payload.signal?.throwIfAborted()
+    const error = new Error('模型未调用 submit_story 提交正文，普通文本已被拒收；请重新生成。')
+    error.code = 'story-tool-required'
+    throw error
+  }
 }
 
 function validContent(content) {

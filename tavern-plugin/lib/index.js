@@ -40,6 +40,7 @@ import { createPluginDataStore } from './domain/plugin-data-store.js'
 import { createPluginAssets } from './domain/plugin-assets.js'
 import { registerModelStreamHooks } from './hooks/model-stream.js'
 import { registerTurnLifecycleHooks } from './hooks/turn-lifecycle.js'
+import { registerStorySubmissionStreamHooks } from './domain/story-submission-stream.js'
 import { registerGameplayTools } from './tools/gameplay.js'
 import { registerUserProfileTools } from './tools/user-profile.js'
 import { registerSkillTools } from './tools/skills.js'
@@ -246,7 +247,7 @@ import { replyBody } from './domain/round-body.js'
 import { paragraphSpeech } from './domain/paragraph-speech.js'
 import { createDisplayRuntimeCapture } from './domain/display-runtime-capture.js'
 import { createPluginBodyGeneration } from './domain/plugin-body-generation.js'
-import { STORY_GENERATE_TOOL_NAME, createStorySubmissionTool, foldStorySubmission, STORY_SUBMIT_TOOL_NAME } from './domain/story-tool-submission.js'
+import { STORY_GENERATE_TOOL_NAME, createStorySubmissionTool, foldStorySubmission, STORY_SUBMIT_TOOL_NAME, storyToolCallSelection } from './domain/story-tool-submission.js'
 import { readHistoryLayoutFile } from './domain/history-tool-call.js'
 import { createTavernRetryLimiter } from './domain/tavern-retry-limiter.js'
 import { lastTavernHelperVariables, HELPER_MESSAGE_COLD_WINDOW } from './domain/tavern-helper-context.js'
@@ -2397,7 +2398,9 @@ export async function apply(ctx) {
     // Keep the inherited history, but start this branch with no pending source work.
     targetAgent.inbox.clear()
     const lastNativeTurn = Number(sessionEvents(target).findLast(event => event.type === 'turn/start')?.data?.turn) || 0
-    const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn })
+    // Settings belong to the current source conversation, even at a historical fork point.
+    const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn,
+      storyToolCall: storyToolCallSelection(source) })
     fork.forkedFrom = { ...fork.forkedFrom, chatId: source.id, sessionId: source.sessionId, storageRevision: source._storageRevision,
       stateChatId: state.id, stateRevision: state._storageRevision, turn, atSeq }
     await conversationRegistry.publish(fork)
@@ -4206,6 +4209,7 @@ export async function apply(ctx) {
     turnStarted: (sessionId, turn) => storyEvents.emit('turn-started', { sessionId, turn }),
     autoChoices,
     backgroundAgentRunner,
+    chatHeaderForSession,
     hookChatForSession,
     clearRuntimePresetRequestState,
     contentText,
@@ -4226,6 +4230,14 @@ export async function apply(ctx) {
     storyOutputToolCall: async () => (await readTavernSettings()).storyOutputToolCall,
     turnOrchestrator,
     userMessageForTurn,
+  })
+
+  registerStorySubmissionStreamHooks({
+    ctx,
+    chatForSession: sessionId => chatHeaderForSession(sessionId, ['mode', 'requestMode', 'storyToolCall', 'storyHistoryToolCall']),
+    enabled: async () => (await readTavernSettings()).storyOutputToolCall,
+    isBackground: sessionId => backgroundAgentRunner.owns(sessionId),
+    recordFailure: turnOrchestrator.recordFailure
   })
 
   // ---------- 模型可选工具 ----------
