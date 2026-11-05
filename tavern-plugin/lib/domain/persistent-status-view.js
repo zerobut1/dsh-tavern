@@ -98,28 +98,39 @@ function projectStatusView(messages, projections, options, compile, summary) {
         const frame=message?.displayRuntime?.frames?.find(frame=>frame.placement==='sidebar' && (frame.panelId===viewId || frame.panelId==='status-'+revision))
         return frame ? {sourceTurn:Number(message.turn)||1,sourcePartIndex:Number(frame.partIndex)||0} : null
       }
+      function reply(message) {
+        return staticTemplate && message?.role === 'assistant' && message.greeting !== true
+          && String(message.sourceText ?? message.text ?? '').trim() !== ''
+      }
+      let hasReply = false
       if(summary){
         const old=prior?.fallbacks?.get(matchKey)
         const incremental=old && Array.isArray(summary.messageIndices)
         const ids=incremental ? summary.messageIndices : Array.from({length:sourceMessages.length},(_,id)=>id)
-        const openings=[],receipts=[]
+        const openings=[],receipts=[],replies=[]
         for(const id of ids){
           summary.onFallback?.()
           const message=sourceMessages[id]
           openings.push([id,opening(message)]);receipts.push([id,receipt(message)])
+          replies.push([id,reply(message) || null])
         }
         const state={
           openings:fallbackIndex.update(incremental?old.openings:[],openings,sourceMessages.length),
-          receipts:fallbackIndex.update(incremental?old.receipts:[],receipts,sourceMessages.length)
+          receipts:fallbackIndex.update(incremental?old.receipts:[],receipts,sourceMessages.length),
+          replies:fallbackIndex.update(incremental?old.replies:[],replies,sourceMessages.length)
         }
         fallbackStates.set(matchKey,state)
         // Authored opening declarations outrank retained sidebar receipts.
         if(!origin)origin=state.openings[fallbackIndex.previous(state.openings,state.openings.length)] || state.receipts[fallbackIndex.previous(state.receipts,state.receipts.length)] || null
+        hasReply = fallbackIndex.previous(state.replies,state.replies.length) >= 0
       }else{
         if(!origin)for(const message of sourceMessages)origin=opening(message)||origin
         if(!origin)for(const message of sourceMessages)origin=receipt(message)||origin
+        hasReply = sourceMessages.some(reply)
       }
-      if (latestTurn <= 1 && !origin) continue
+      // Character creation greetings stay gated, but regenerating the first
+      // story reply must not require the model to remember a static UI marker.
+      if (latestTurn <= 1 && !origin && !hasReply) continue
       templates.set(revision, {
         version: 1, viewId,
         title: String(rule.name || rule.scriptName || '角色状态').slice(0, 80),
@@ -167,7 +178,7 @@ function projectStatusView(messages, projections, options, compile, summary) {
     : summary ? filteredIndex.from(sourceProjections.map(filter)) : sourceProjections.map(filter)
   if(summary){
     summary.next={source:sourceProjections,matches:matchStates,filtered,contentSignature,legacy,fallbacks:fallbackStates,legacySources,legacyDependencies,partState}
-    summary.filteredBytes=partBytes + (legacyDependencies?dependencyIndex.bytes(legacyDependencies):0) + (legacySources?sourceIndex.bytes(legacySources):0) + [...fallbackStates.values()].reduce((size,state)=>size+fallbackIndex.info(state.openings).bytes+fallbackIndex.info(state.receipts).bytes,0) + filteredIndex.info(filtered).bytes + matchedRows.reduce((size,rows)=>size+matchIndex.info(rows).bytes,0)
+    summary.filteredBytes=partBytes + (legacyDependencies?dependencyIndex.bytes(legacyDependencies):0) + (legacySources?sourceIndex.bytes(legacySources):0) + [...fallbackStates.values()].reduce((size,state)=>size+fallbackIndex.info(state.openings).bytes+fallbackIndex.info(state.receipts).bytes+fallbackIndex.info(state.replies).bytes,0) + filteredIndex.info(filtered).bytes + matchedRows.reduce((size,rows)=>size+matchIndex.info(rows).bytes,0)
   }
   return {
     projections: filtered,
