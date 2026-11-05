@@ -1,0 +1,26 @@
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Custom-branch units only: dependencies are in-memory doubles or temporary
+// fixtures. No native DSH boot, browser, NapCat connection or model API.
+const tests = [
+  'background-session-retirement', 'background-agent-lifecycle', 'background-task-coordinator', 'header-shortcuts',
+  'conversation-header', 'conversation-background-model', 'composer-enter', 'session-view-projection', 'card-preparation',
+  'card-opening-previews', 'persistent-status-view', 'opening-slash', 'native-surface-repair', 'story-reconciliation', 'transcript-row-plan',
+  'worldbook-placement', 'compaction-request',
+  'worldbook-library', 'helper-worldbook-api', 'helper-worldbook-creation', 'helper-api-completeness', 'play-card-snapshot',
+  'preset-editor', 'preset-library',
+  'conversation-fork-point', 'conversation-fork-targets', 'conversation-fork',
+  'regex-manager', 'tavern-regex-order', 'inline-card-prose', 'script-display-layer', 'reply-presentation', 'history-tool-call',
+  'conversation-background', 'posture-editor', 'manual-panel-docking', 'foreground-tool-options', 'foreground-orchestration-strategies', 'story-submission-guard',
+  'mvu-background-settlement', 'background-command', 'background-tasks', 'custom-rpc',
+  'qq-bridge', 'conversation-messenger', 'onebot-client',
+  'tavern-http-origin',
+]
+const root = fileURLToPath(new URL('..', import.meta.url))
+const result = spawnSync(process.execPath, ['--test', ...tests.map(name => path.join(root, 'tests', name + '.test.mjs'))], {
+  cwd: root, stdio: 'inherit'
+})
+if (result.error) console.error(result.error.message)
+process.exit(result.status ?? 1)
