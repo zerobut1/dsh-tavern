@@ -4,7 +4,7 @@ function parseTavernInlineFragment(content, doc) {
     if (!doc?.createElement || /<!doctype|<\/?(?:html|head|body)\b/i.test(content)) return null;
     const template = doc.createElement('template');
     template.innerHTML = String(content);
-    const allowed = new Set(['DIV','SPAN','P','IMG','BR','HR','B','STRONG','I','EM','U','S','SMALL','SUB','SUP','BLOCKQUOTE','PRE','CODE','UL','OL','LI','DL','DT','DD','TABLE','THEAD','TBODY','TFOOT','TR','TD','TH','CAPTION','COLGROUP','COL','H1','H2','H3','H4','H5','H6','A','DETAILS','SUMMARY','SECTION','ARTICLE','FIGURE','FIGCAPTION']);
+    const allowed = new Set(['DIV','SPAN','P','IMG','BR','HR','B','STRONG','I','EM','U','S','SMALL','SUB','SUP','RUBY','RT','RP','BLOCKQUOTE','PRE','CODE','UL','OL','LI','DL','DT','DD','TABLE','THEAD','TBODY','TFOOT','TR','TD','TH','CAPTION','COLGROUP','COL','H1','H2','H3','H4','H5','H6','A','DETAILS','SUMMARY','SECTION','ARTICLE','FIGURE','FIGCAPTION']);
     for (const node of template.content.querySelectorAll('*')) {
         if (!allowed.has(node.tagName)) return null;
         for (const attr of node.attributes) {
@@ -26,11 +26,14 @@ function TavernInlineFragment(props) {
         if (!root) return;
         const fragment = parseTavernInlineFragment(props.content, root.ownerDocument);
         if (fragment) root.replaceChildren(fragment);
-        // Zoom only our own wrapper: the card's DOM and styles are never written, and in
-        // the host page viewport units cannot feed back into the zoomed size.
-        const unbind = bindTavernFontZoom(root, root.ownerDocument.defaultView);
+        // Host fragments already inherit DSH's content font size; iframe zoom
+        // would apply the same preference a second time.
         const colors = installTavernTextColors(root, {}, findTavernQuoteRanges);
-        return function () { colors.dispose(); unbind(); root.replaceChildren(); };
-    }, [props.content]);
-    return React.createElement('div', {ref, className:'mes_text dsh-tavern-inline-fragment'});
+        if (props.scriptLayer) announceTavernMessageRendered(root.ownerDocument.defaultView, props.scriptLayer.sessionId, props.scriptLayer.messageId);
+        return function () { colors.dispose(); root.replaceChildren(); };
+    }, [props.content, props.scriptLayer?.sessionId, props.scriptLayer?.messageId]);
+    return React.createElement('div', {ref, className:'mes_text dsh-tavern-inline-fragment',
+        'data-dsh-script-layer':props.scriptLayer ? '' : undefined,
+        'data-session':props.scriptLayer?.sessionId,
+        'data-mesid':props.scriptLayer ? String(props.scriptLayer.messageId) : undefined});
 }

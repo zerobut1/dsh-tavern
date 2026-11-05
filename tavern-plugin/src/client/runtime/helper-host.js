@@ -77,7 +77,11 @@
             const view = layer.ownerDocument.defaultView;
             const Observer = options.MutationObserver || view.MutationObserver;
             let takenOver = false, disposed = false;
-            layer.hidden = true;
+            // Keep the copy measurable for scripts that skip display:none text.
+            // It stays invisible and inert until a script edits its DOM.
+            layer.hidden = false;
+            layer.setAttribute("data-dsh-script-pending", "");
+            layer.setAttribute("inert", "");
             native.hidden = false;
             const slots = "[data-dsh-script-media]";
             // The copy gives scripts the prose and the media positions. Move each
@@ -96,7 +100,8 @@
                 if (disposed) return;
                 if (!takenOver) {
                     takenOver = true;
-                    layer.hidden = false;
+                    layer.removeAttribute("data-dsh-script-pending");
+                    layer.removeAttribute("inert");
                     native.hidden = true;
                 }
                 placeMedia();
@@ -122,6 +127,8 @@
                 placeMedia();
                 layer.replaceChildren();
                 layer.hidden = true;
+                layer.removeAttribute("data-dsh-script-pending");
+                layer.removeAttribute("inert");
                 native.hidden = false;
             };
         }
