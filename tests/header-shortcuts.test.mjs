@@ -124,6 +124,16 @@ test('手机上最多保留三个快捷入口，导出优先，其余进 ⋮', (
   assert.deepEqual(Array.from(fold(['a', 'b'], 1)), ['b'])
 })
 
+test('自定义子代理入口参与手机折叠，更多菜单内仍可打开，并能从顶栏设置重新添加', () => {
+  const fold = vm.runInNewContext('(' + sliceFunction(client, 'tavernHeaderMobileFold') + ')', { TAVERN_HEADER_MOBILE_LIMIT: 3 })
+  assert.deepEqual(Array.from(fold(['dsh-tavern:status', 'header:export', 'header:subagents'], 3)), [])
+  assert.deepEqual(Array.from(fold(['dsh-tavern:status', 'header:export', 'header:subagents'], 1)), ['dsh-tavern:status', 'header:subagents'])
+  assert.match(client, /foldedEntries\.map\(entry => entry\.id === "header:subagents"\s*\? h\(SubagentAction/)
+  assert.match(client, /SubagentAction: TavernSubagentMenu/)
+  assert.match(client, /push\(\{ id: "header:subagents", label: "子代理" \}\)/)
+  assert.doesNotMatch(client, /id: "dsh-tavern-subagents", order: 85/)
+})
+
 test('手机顶栏的布局约束：角落按钮留座、宿主动作组保持自然宽度', () => {
   // 预算变量写在标题行上，JS 读它折算槽位；数值是 390px 实测（mobile-layout-browser 断言），标题行不再留 44px 右内边距。
   assert.match(css, /\[class\*="_titleRow"\] \{\s*--dsh-tavern-header-fixed: 142px;/)

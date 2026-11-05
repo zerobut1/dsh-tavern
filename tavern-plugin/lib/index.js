@@ -74,10 +74,11 @@ import { createBoundedHistory, readRecentWindow, readRowsAt, storyContextMessage
 import { createHelperHistoryAccess } from './domain/helper-history-access.js'
 import { isScopedMessages } from './domain/scoped-messages.js'
 import {registerVariableReadTool} from './domain/read-variables.js'
-import { createBackgroundSessionRetirement, installRetiredBackgroundFilter, installRetiredCatalogView } from './domain/background-session-retirement.js'
+import { createBackgroundSessionRetirement, installRetiredBackgroundFilter, installRetiredCatalogView, subagentCloseDecision } from './domain/background-session-retirement.js'
 import { createBackgroundCatalogBackfill } from './domain/background-catalog.js'
 import { createBranchOriginRepair } from './domain/branch-origin-repair.js'
 import { createGameTitles } from './domain/game-titles.js'
+import { currentBackgroundSessionId } from './domain/background-identity.js'
 import { createCardMemory, CARD_MEMORY_TOOLS } from '../packages/dsh-tavern-card-memory/index.js'
 import { installSkillCatalogSessionScope } from './domain/skill-catalog-session-scope.js'
 import { projectCardSummary } from './domain/card-preparation.js'
@@ -1550,13 +1551,102 @@ export async function apply(ctx) {
   }
   // A background session is this game's only if its stored parent is this game's foreground
   // session and no other game still refers to it (imports used to keep foreign ids).
-  async function ownsBackgroundSession(chat, sessionId, readIndexOnce) {
+  async function ownsBackgroundSession(chat, sessionId, readIndexOnce, options = {}) {
+    if (readIndexOnce && typeof readIndexOnce !== 'function') { options = readIndexOnce; readIndexOnce = undefined }
+    const { historyReferences = true } = options
     const index = readIndexOnce ? await readIndexOnce() : await readIndex()
-    if ((index.chats || []).some(row => row.id !== chat.id && (row.backgroundSessionId === sessionId || (row.backgroundHistoryIds || []).includes(sessionId)))) return false
+    if ((index.chats || []).some(row => row.id !== chat.id && (row.backgroundSessionId === sessionId || historyReferences && (row.backgroundHistoryIds || []).includes(sessionId)))) return false
     try {
       const handle = await ctx.get('sessionPersistence').open(sessionId, 'read')
       try { return handle.header?.parentSession === chat.sessionId } finally { await handle.close() }
-    } catch { return false }
+    } catch (error) {
+      // A direct catalog may outlive a removed log. Closing only retires that
+      // stale identity; deletion still requires a real, owned session header.
+      return !historyReferences && error?.name === 'SessionPersistenceNotFoundError'
+    }
+  }
+  async function listGameSubagents(sessionId) {
+    const chat = await chatForSession(str(sessionId))
+    if (!chat) throw new Error('请先打开游玩会话')
+    const parentSessionId = str(chat.sessionId)
+    const subagents = ctx.get('subagents')
+    if (typeof subagents?.listChildren !== 'function') throw new Error('当前宿主不能列出子代理')
+    const rows = await subagents.listChildren(parentSessionId)
+    const items = []
+    for (const row of Array.isArray(rows) ? rows : []) {
+      if (!row || row.kind === 'diagnostic' || (row.kind && row.kind !== 'child')) continue
+      const id = str(row.id)
+      if (!id || id === parentSessionId) continue
+      const agent = agentRegistry.get(id)
+      const running = backgroundAgentRunner.isActive(id) || agent?.phase?.kind === 'running' || agent?.status === 'running'
+      const owned = await ownsBackgroundSession(chat, id, { historyReferences: false })
+      let hasChildren = row.hasChildren === true
+      if (owned && !hasChildren) {
+        try { hasChildren = (await subagents.listChildren(id)).length > 0 }
+        catch (error) { if (error?.code !== 'SESSION_QUERY_SESSION_NOT_FOUND') throw error }
+      }
+      const decision = subagentCloseDecision({
+        // Old checkpoints only need readable logs; ending reuse leaves those intact.
+        owned,
+        running,
+        hasChildren
+      })
+      if (decision.closeable && agent && !backgroundAgentRunner.owns(id)) {
+        decision.closeable = false
+        decision.reason = '请先关闭此子代理的对话页，再返回主对话操作'
+      }
+      items.push({
+        id,
+        label: str(row.label || row.title || row.name) || '子代理',
+        activity: running ? 'running' : 'inactive',
+        closeable: decision.closeable,
+        reason: decision.reason
+      })
+    }
+    return { parentSessionId, subagents: items, retiredIds: await backgroundRetirement.retiredIds(parentSessionId) }
+  }
+  async function closeGameSubagents(sessionId, ids) {
+    const requested = [...new Set((Array.isArray(ids) ? ids : []).map(str).filter(Boolean))]
+    if (!requested.length) throw new Error('请选择要关闭的子代理')
+    const chat = await chatForSession(str(sessionId))
+    if (!chat) throw new Error('请先打开游玩会话')
+    return backgroundTasks.exclusive(chat.id, async () => {
+      const current = await taskStateReader.forSession(chat.sessionId)
+      if (current?.regenInProgress || agentRegistry.get(chat.sessionId)?.phase?.kind === 'running'
+        || backgroundTasks.activity(current).busy || autoCompaction?.blocked(current)) throw new Error('请等待本轮生成、结算或压缩完成后再关闭子代理')
+      const listed = await listGameSubagents(sessionId)
+      const byId = new Map(listed.subagents.map(item => [item.id, item]))
+      const closed = []
+      const refused = []
+      for (const id of requested) {
+        const item = byId.get(id)
+        if (!item) { refused.push({ id, reason: '不在当前对话的子代理列表里' }); continue }
+        if (!item.closeable) { refused.push({ id, reason: item.reason }); continue }
+        try {
+          await backgroundAgentRunner.retire(id, listed.parentSessionId)
+          if (currentBackgroundSessionId(current) === id) {
+            await updateChat(chat.id, draft => {
+              if (currentBackgroundSessionId(draft) !== id) return
+              if (draft.timeline?.schemaVersion !== 1) {
+                const { checkpointCount, ...timeline } = storyTimeline.inspect({ chat: draft })
+                draft.timeline = { ...timeline, schemaVersion: 1, checkpoints: [] }
+              }
+              draft.timeline.participants.background = {
+                role: 'background', lifetime: 'chat', sessionId: '', status: 'needs-session',
+                branchId: draft.timeline.branchId, syncedRevision: null, boundary: null, rewindTo: null, updatedAt: Date.now()
+              }
+              draft.candidateAgent = null
+              return draft
+            }, { source: 'background.close' })
+          }
+          const imagePath = 'scene-images/' + createHash('sha256').update(chat.id).digest('hex') + '/agent.json'
+          await profileData.updateJson(imagePath, saved => saved?.sessionId === id ? null : undefined)
+          closed.push(id)
+        } catch (error) { refused.push({ id, reason: str(error?.message || error) }) }
+      }
+      const next = await listGameSubagents(sessionId)
+      return { closed, refused, parentSessionId: next.parentSessionId, subagents: next.subagents }
+    })
   }
   // A batch hands every loaded session to one deferred queue write instead of one per game.
   async function finishChatDeletion(chatId, chat, footprint, deferred) {
@@ -3625,7 +3715,7 @@ export async function apply(ctx) {
 
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
   // paragraphSpeech: a paragraph's spoken line, the core's voice selection (the stage's clip export reads it).
-  const rpcDeps = { readCardAssetExtension, frameStorage, worldbookSkillProvider, sessionDebugEvidence, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds, paragraphSpeech,
+  const rpcDeps = { listGameSubagents, closeGameSubagents, readCardAssetExtension, frameStorage, worldbookSkillProvider, sessionDebugEvidence, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds, paragraphSpeech,
     applicationUpdater, autoChoices, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog, storyEvents, workflow,
     backgroundConfigForSession, bindScript, bodyEditor, branchOrigin, callModel, candidateGenerator, candidateTasks, polishPrereview, polishRecords, polishReviewer, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload, messageDeletion,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardSummaries, cardTaskPrompts, castAssets,
