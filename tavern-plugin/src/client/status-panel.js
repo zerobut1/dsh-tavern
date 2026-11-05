@@ -133,6 +133,7 @@ function StatusPanelView(p) {
             h(TavernPluginTasks, { sessionId: p.props.sessionId, activity: view.activity, busy: running || view.activity?.busy || view.activity?.phase === "pending" }),
             h(TavernPluginStatusSections, { sessionId: p.props.sessionId }),
             h(TavernLedger, { sessionId: p.props.sessionId, ledger: view.ledger, ledgerTask: view.ledgerTask, busy: running || view.activity?.busy, foregroundRunning: running }),
+            h(TavernPosturePanel, { key: p.props.sessionId, sessionId: p.props.sessionId, posture: view.posture, enabled: view.postureEnabled, busy: running || view.activity?.busy || view.activity?.phase === "pending" || view.regenInProgress || view.settleStatus === "running" }),
             h(TavernMvuVariables, { sessionId: p.props.sessionId, view: view }),
 
             h("footer", { className: "fork-status-foot" },

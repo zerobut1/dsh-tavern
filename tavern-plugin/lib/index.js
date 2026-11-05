@@ -213,6 +213,7 @@ import { LEDGER_SUBMIT_TOOL } from './domain/story-ledger.js'
 import { createManualLedger } from './domain/manual-ledger.js'
 import { POSTURE_SUBMIT_TOOL } from './domain/posture-submission.js'
 import { bubbleCastLines } from './domain/cast-annotation.js'
+import { createPostureEditor } from './domain/posture-editor.js'
 import { createPolishRecords } from './domain/polish-records.js'
 import { createPolishPrereview, createPolishReviewer } from './domain/polish-run.js'
 import { applyPolishEdits } from './domain/polish-review.js'
@@ -3735,8 +3736,19 @@ export async function apply(ctx) {
   ctx.effect(() => () => speechRecognition.service.dispose())
 
   // Request handlers by area live in rpc/; bindings assigned later are read through getters.
+  const savePosture = createPostureEditor({
+    readChat: sessionId => chatHeaderForSession(sessionId, ['mode', 'posture']),
+    updateChat: (id, mutate, metadata) => updateChatHeader(id, ['mode', 'posture'], mutate, metadata),
+    isBusy: async sessionId => {
+      const chat = await taskStateReader.forSession(sessionId)
+      if (!chat) return true
+      const activity = backgroundTasks.activity(chat)
+      return chat.regenInProgress === true || agentRegistry.get(sessionId)?.phase?.kind === 'running' || activity.busy || activity.phase === 'pending'
+    }
+  })
+
   // paragraphSpeech: a paragraph's spoken line, the core's voice selection (the stage's clip export reads it).
-  const rpcDeps = { backgroundCommand, listGameSubagents, closeGameSubagents, readCardAssetExtension, frameStorage, worldbookSkillProvider, sessionDebugEvidence, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds, paragraphSpeech,
+  const rpcDeps = { savePosture, backgroundCommand, listGameSubagents, closeGameSubagents, readCardAssetExtension, frameStorage, worldbookSkillProvider, sessionDebugEvidence, TAVERN_PACKAGE_VERSION, agentCompaction, agentRegistry, appendStoryRounds, paragraphSpeech,
     applicationUpdater, autoChoices, attachPlayChatDebug, backgroundAgentRunner, backgroundCatalog, storyEvents, workflow,
     backgroundConfigForSession, bindScript, bodyEditor, branchOrigin, callModel, candidateGenerator, candidateTasks, polishPrereview, polishRecords, polishReviewer, chatHeaderWithLatestFloors, applyCardUpdate, cardAutoReload, messageDeletion,
     cardMemory, cardOrganization, cardPacksOf, cardPlugins, cardPreparation, cardSummaries, cardTaskPrompts, castAssets,
