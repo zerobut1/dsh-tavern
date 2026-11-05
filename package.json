@@ -75,7 +75,10 @@
     "dsh-asset-library": "link:./tavern-plugin/packages/dsh-asset-library",
     "esbuild": "0.25.12",
     "dsh-tavern-stage": "link:./tavern-plugin/packages/dsh-tavern-stage",
-    "dsh-tavern-tts": "link:./tavern-plugin/packages/dsh-tavern-tts"
+    "dsh-tavern-tts": "link:./tavern-plugin/packages/dsh-tavern-tts",
+    "lexical": "0.49.0",
+    "@lexical/plain-text": "0.49.0",
+    "@lexical/history": "0.49.0"
   },
   "description": "DSH Tavern: standalone tavern Profile bundle",
   "engines": {
