@@ -99,7 +99,7 @@ export function registerTavernHttpRoutes({
         const readsCapability = req.method === 'GET' && ['/api/dsh-tavern/session-resource', '/api/dsh-tavern/helper-history'].includes(pathname)
         const cookieFree = req.method === 'GET' && (readsCapability || readsCachedAsset || readsStaticAsset || readsOfficialMvu || readsFullTemplate || readsRuntimeAsset || readsClientAsset || readsPluginAsset)
         if (cookieFree) {
-          if (!isTrustedHostRequest(req, ctx.get('connection')?.trustedHosts)) {
+          if (!isTrustedHostRequest(req, ctx.get('connection')?.trustedHosts, webServer?.host)) {
             res.writeHead(403); res.end('forbidden'); return
           }
         } else {

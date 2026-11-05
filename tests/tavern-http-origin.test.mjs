@@ -2,16 +2,16 @@ import test from 'node:test'
 import {Readable, Writable} from 'node:stream'
 import {once} from 'node:events'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { registerTavernHttpRoutes } from '../tavern-plugin/lib/http/routes.js'
 import {createTavernClientAssets} from '../tavern-plugin/lib/domain/tavern-client-assets.js'
 import {registerStageClientAssets} from '../tavern-plugin/packages/dsh-tavern-stage/lib/client-assets.js'
 
-// 只为了拿到 handleTavernRequest：registerTavernHttpRoutes 在没有 webServer 时
-// 只做一次 exposeHandler 回调，不注册任何路由，也不读取其它依赖。
-function handle(clientAssets, overrides = {}) {
+// 只拿到请求处理器，不启动 HTTP 服务。
+function handle(clientAssets, overrides = {}, webServer, connection = { requestRejection: () => undefined, trustedHosts: [] }) {
   let handler
   // every HTTP request passes the host Connection first (routes.js); this one admits all.
-  const ctx = { get: name => name === 'connection' ? { requestRejection: () => undefined, trustedHosts: [] } : undefined, effect: () => {} }
+  const ctx = { get: name => ({ connection, webServer })[name], effect: () => {} }
   registerTavernHttpRoutes({
     ctx,
     clientAssets,
@@ -35,8 +35,7 @@ function capture() {
   return res
 }
 
-async function call(handler, { origin, host, method = 'GET', url = '/api/dsh-tavern/runtime-generation' }) {
-  const res = capture()
+async function call(handler, { origin, host, method = 'GET', url = '/api/dsh-tavern/runtime-generation', res = capture() }) {
   const headers = {}
   if (host !== undefined) headers.host = host
   if (origin !== undefined) headers.origin = origin
@@ -192,6 +191,30 @@ test('沙箱资源仍凭能力票据访问，不要求主页面登录 Cookie', a
     assert.equal((await call(routes.external, { host: PUBLIC, origin: 'null', url: `/api/dsh-tavern/session-resource?cap=${cap}` })).status, expected)
   }
   assert.equal(routes.calls(), 0)
+})
+
+test('MVU 运行时资源允许实际绑定的局域网地址，保留来源校验和写操作鉴权', async () => {
+  const url = '/api/dsh-tavern/vendor/runtime-assets/zod/index.mjs'
+  const expected = await readFile(new URL('../tavern-plugin/lib/vendor/runtime-assets/zod/index.mjs', import.meta.url))
+  for (const bindHost of ['192.168.31.71', 'fd00::71']) {
+    const host = (bindHost.includes(':') ? `[${bindHost}]` : bindHost) + ':3081'
+    const handler = handle(undefined, {}, { host: bindHost }, { trustedHosts: [], requestRejection: () => 401 })
+    for (const origin of ['null', `http://${host}`]) {
+      const chunks = []
+      const res = new Writable({ write(chunk, encoding, done) { chunks.push(chunk); done() } })
+      res.writeHead = (status, headers) => { res.status = status; res.headers = headers }
+      await call(handler, { host, origin, url, res })
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['Content-Type'], 'text/javascript; charset=utf-8')
+      assert.equal(res.headers['Access-Control-Allow-Origin'], '*')
+      assert.ok(Buffer.concat(chunks).equals(expected), '返回完整的本地 Zod 模块')
+    }
+    assert.equal((await call(handler, { host, origin: 'https://evil.example', url })).status, 403)
+    for (const otherHost of ['192.168.31.72:3081', '[fd00::72]:3081', 'evil.example:3081', undefined]) {
+      assert.equal((await call(handler, { host: otherHost, origin: 'null', url })).status, 403)
+    }
+    assert.equal((await operation(handler, { host })).status, 401)
+  }
 })
 
 
