@@ -98,3 +98,20 @@ for (const spec of ['flat', 'chara_card_v2', 'chara_card_v3']) test('变量编�
   assert.equal(rawNamed.nameChanged, true)
   assert.equal(cards.update({ kind: 'card', card: workspace, patch: { name: '原名' } }).nameChanged, false)
 })
+
+test('按需交给酒馆脚本的角色带上原始扩展，会话视图不带', () => {
+  const cards = moduleUnderTest()
+  const assets = { panel: { guyue: 'data:image/webp;base64,abc' } }
+  const workspace = cards.create({
+    kind: 'import',
+    payload: { spec: 'chara_card_v3', spec_version: '3.0', data: { name: '仙姝', extensions: { xsd_assets: assets } } }
+  })
+  const view = cards.present({ card: workspace, as: 'view' })
+  assert.equal(Object.hasOwn(view, 'extensions'), false)
+  const character = cards.present({ card: workspace, as: 'helper-character' })
+  assert.equal(character.name, '仙姝')
+  assert.equal(character.extensions.xsd_assets.panel.guyue, 'data:image/webp;base64,abc')
+  assert.equal(Object.hasOwn(character, 'data'), false)
+  const wrapped = { ...character, data: { ...character } }
+  assert.equal(wrapped.data.extensions.xsd_assets.panel.guyue, 'data:image/webp;base64,abc')
+})
