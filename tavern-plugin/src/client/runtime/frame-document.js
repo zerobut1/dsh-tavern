@@ -333,7 +333,7 @@
 			const helperTurn = Math.max(0, Number(input && input.turn) || 0);
 			// preview companions share only their owner-issued storage grant
 			const preparationRuntime = input && input.openingPreview && input.openingPreview.runtime
-				? buildTavernHelperScriptParts({ token: input.token, context: input.openingPreview.runtime.context, scripts: input.openingPreview.runtime.scripts, frameStorage: input.frameStorage, previewScope: true }) : null;
+				? buildTavernHelperScriptParts({ token: input.token, context: input.openingPreview.runtime.context, scripts: input.openingPreview.runtime.scripts, frameStorage: input.frameStorage, previewScope: true, previewOpeningId: input.openingPreview.openingIds?.[input.openingPreview.selectedIndex] }) : null;
 			// P1-5: a plain message floor whose markup is static (no <script>, inline handler,
 			// Vue template or Tailwind utility class) never evaluates the ~860KB vendor runtime.
 			// Opening previews and preparation runtimes keep the full dependency set.
@@ -372,6 +372,7 @@
 			// Card module scripts wait for the helper globals (z, YAML) as the script sandbox does;
 			// otherwise a module using them at top level races the async import.
 			const frameHtml = helperShim || preparationRuntime ? String(html).replace(/<script\b[^>]*\btype\s*=\s*["']?module["']?[^>]*>/gi, tag => /\bsrc\s*=/i.test(tag) ? tag : tag + 'await window.__dshTavernHelperReady;') : html;
+			const viewportPageStyle = '<style data-dsh-tavern-viewport-page>html:root[data-dsh-tavern-viewport-page],html:root[data-dsh-tavern-viewport-page] body{height:100%!important;min-height:0!important}</style>';
 			const cleanRuntimeReporter = runtimeReporter.replace('addEventListener("load",schedule);schedule();', 'addEventListener("load",schedule);addEventListener("resize",schedule);schedule();').replace("capturedAt:Date.now(),", "capturedAt:Date.now(),layout:window.__dshTavernFrameLayout?window.__dshTavernFrameLayout():null,").replace('dom=copy.innerHTML;', 'Array.from(copy.querySelectorAll("script[data-dsh-tavern-text-colors],script[data-dsh-tavern-touch]")).forEach(function(node){node.remove();});dom=copy.innerHTML;');
 			return '<!doctype html><html><head><meta charset="utf-8">'
                 + '<script data-dsh-tavern-crypto>(' + installTavernCryptoSubtlePolyfill.toString() + ')(window);<\/script>'
@@ -396,7 +397,7 @@
 				// Viewers without the execution lease still receive live variables. Legacy
 				// status panels read parent.Mvu; expose their Helper API below the executor.
 				+ (!preparationRuntime && input && input.helperContext && input.persistent === true && input.trustedCardMode === true ? '<script data-dsh-tavern-status-host>(function(){const release=(' + installTavernTrustedHostFacade.toString() + ')(window.parent,window,-0.5,["Mvu"]);window.addEventListener("pagehide",release,{once:true});window.addEventListener("unload",release,{once:true});})();<\/script>' : '')
-				+ fontRuntime + '<script data-dsh-fork-hscroll>(' + installHScroll.toString() + ')(window,"bubble");<\/script>' + '</head><body class="no-blur">' + (input && input.helperContext ? '<script data-dsh-tavern-legacy-composer>const createTavernFrameLifecycle=' + createTavernFrameLifecycle.toString() + ';(' + installLegacyTavernComposer.toString() + ')();<\/script>' : '') + (preparationRuntime ? preparationRuntime.body : '') + frameHtml + sizingRuntime + layoutNormalizer + (input && input.persistent ? "" : textColorRuntime) + zoomFrameReporter(reporter) + '<script data-dsh-tavern-touch>(' + installTavernFrameTouch.toString() + ')(' + token + ',' + scrollTavernTouchChain.toString() + ');<\/script>' + readyReporter + '</body></html>';
+				+ viewportPageStyle + fontRuntime + '<script data-dsh-fork-hscroll>(' + installHScroll.toString() + ')(window,"bubble");<\/script>' + '</head><body class="no-blur">' + (input && input.helperContext ? '<script data-dsh-tavern-legacy-composer>const createTavernFrameLifecycle=' + createTavernFrameLifecycle.toString() + ';(' + installLegacyTavernComposer.toString() + ')();<\/script>' : '') + (preparationRuntime ? preparationRuntime.body : '') + frameHtml + sizingRuntime + layoutNormalizer + (input && input.persistent ? "" : textColorRuntime) + zoomFrameReporter(reporter) + '<script data-dsh-tavern-touch>(' + installTavernFrameTouch.toString() + ')(' + token + ',' + scrollTavernTouchChain.toString() + ');<\/script>' + readyReporter + '</body></html>';
 		}
 
         function startTavernHelperLoader(source) {

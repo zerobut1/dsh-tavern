@@ -7,6 +7,8 @@ import { roundAnchor } from '../tavern-plugin/lib/domain/round-anchor.js'
 import { locateRollbackSurface, projectedReplyTurns } from '../tavern-plugin/lib/domain/rollback-surface.js'
 import { nativeOpeningMessageId } from '../tavern-plugin/lib/domain/native-opening.js'
 import { planNativeSurfaceRepair, recordNativeSurfaceRepair, repairNativeSurface } from '../tavern-plugin/lib/domain/native-surface-repair.js'
+import { createSessionStateView } from '../tavern-plugin/lib/domain/chat-session-state.js'
+import { planTranscriptRows, planShowsRow } from '../tavern-plugin/lib/domain/transcript-row-plan.js'
 
 const model = { kind: 'model', provider: 'test', model: 'test' }
 const textOf = event => (event.data.message?.content || event.data.content || []).map(block => block.text).join('')
@@ -60,6 +62,40 @@ test('一致的存档不写任何东西', () => {
   assert.equal(plan(h).status, 'intact')
   assert.equal(repair(h).applied, false)
   assert.deepEqual(h.session.surface.nodes, before)
+})
+
+test('多轮上下文修复不把旧正文映射到后来的输入，也不显示修复副本', () => {
+  for (const scope of ['tail', 'full']) {
+    const h = game(3, { id: 'transcript-' + scope })
+    if (scope === 'full') h.chat.messages.splice(1, 0, { role: 'system', text: '开局旁白' })
+    else h.chat.messages.at(-1).text += '（修订）'
+    assert.equal(repair(h).applied, true)
+    const events = sessionEvents(h.session)
+    const view = createSessionStateView({ activity: () => ({ busy: false }), evidence: () => ({ session: h.session, events }) }).rollback(h.chat)
+    assert.deepEqual(view.regeneratedDshTurns, {}, scope + ': 修复不是重生成，不改原有回复的显示轮次')
+    assert.deepEqual(view.supersededDshTurns, [], scope + ': 修复不作废原有正文行')
+    const rows = planTranscriptRows({ chat: h.chat, events })
+    for (const turn of [1, 2, 3, 4]) {
+      assert.equal(planShowsRow(rows, { turn, kind: 'user' }), true)
+      assert.equal(planShowsRow(rows, { turn, kind: 'assistant-step' }), true)
+    }
+    for (const event of events.filter(event => event.type === 'turn/start' && event.data.turn > 4)) {
+      assert.equal(planShowsRow(rows, { turn: event.data.turn, kind: 'user' }), false)
+      assert.equal(planShowsRow(rows, { turn: event.data.turn, kind: 'assistant-step' }), false)
+    }
+  }
+})
+
+test('开局旁白与未删除的开场合并一次，压缩后不把旧开局重新插入', () => {
+  const h=game(2)
+  h.chat.messages.splice(1,0,{role:'system',text:'旁白设定'})
+  repair(h)
+  assert.equal(nodeTexts(h.session)[1],'开场\n\n旁白设定')
+  assert.equal(plan(h).status,'intact')
+  const nodes=h.session.surface.nodes
+  replaceSessionSurface(h.session,'user/message',{id:'summary',role:'user',content:[{type:'text',text:'开局及前情摘要'}],
+    source:{kind:'plugin',plugin:'compact'}},{start:nodes[1],end:nodes.at(-1),sourceEventSeqs:nodes.slice(1)})
+  assert.equal(plan(h).status,'intact','compacted opening is represented by the summary')
 })
 
 test('只坏最后一轮：保留前面全部节点，只重写最后一轮，修复后回退能直接定位', () => {

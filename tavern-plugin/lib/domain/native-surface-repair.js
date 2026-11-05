@@ -3,7 +3,7 @@ import { createSessionSurfaceMutator } from './session-surface-mutations.js'
 import { createRoundAnchorResolver, roundAnchor, validAnchor } from './round-anchor.js'
 import { isCompactionCheckpoint } from './compaction-checkpoint.js'
 import { isTurnInput } from './session-turn-input.js'
-import { nativeOpeningMessageId } from './native-opening.js'
+import { nativeOpeningMessageId, openingNarration } from './native-opening.js'
 import { RETAINED_STORY_ROUNDS } from './story-compaction.js'
 import { producerSource } from './message-source.js'
 
@@ -19,8 +19,12 @@ function textOf(content) {
 
 function chatRounds(chat) {
   const rounds = []
+  const narration = openingNarration(chat)
+  if (narration) rounds.push({ messageIndex: narration.indices.at(-1), turn: 1, greeting: true,
+    openingNarration: true, userText: null, replyText: narration.text, texts: new Set([narration.text.trim()]) })
   let pending = null
   for (const [index, message] of (chat.messages || []).entries()) {
+    if (narration && index <= narration.indices.at(-1)) continue
     if (message?.role === 'user') {
       // Only the last adjacent user can pair with the next reply. Earlier users are
       // story messages in their own right, not lines to merge into that reply's input.
