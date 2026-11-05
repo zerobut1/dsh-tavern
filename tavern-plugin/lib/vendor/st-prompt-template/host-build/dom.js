@@ -58,7 +58,7 @@ export function captureTemplateDisplay(message, index) {
   if (parsed.innerHTML === formatted) {
     if (formattingText === message.mes) return undefined
     // Freeze ordinary formatting too, without making the whole reply an HTML frame.
-    return {source:message.mes,swipe:message.swipe_id || 0,html:formatted,formattingText:formatDisplayText(message.mes,message.is_system,message.is_user,index,false)}
+    return {source:message.mes,swipe:message.swipe_id || 0,html:formatted,formattingVersion:2,formattingText:formatDisplayText(message.mes,message.is_system,message.is_user,index,false)}
   }
   // Preserve decorations in real template output.
   parsed.innerHTML = html
