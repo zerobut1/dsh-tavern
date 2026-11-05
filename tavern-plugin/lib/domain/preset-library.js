@@ -280,6 +280,14 @@ export function createPresetLibrary({ resources: fileResources, state: profileDa
     await presetEditor.moveEntry(path, key, phase, beforeKey, revision)
     return await detail(path)
   }
+  async function addEntry(path, phase, revision) {
+    const added = await presetEditor.addEntry(path, phase, revision)
+    return { ...added, preset: await detail(path) }
+  }
+  async function deleteEntry(path, key, revision) {
+    await presetEditor.deleteEntry(path, key, revision)
+    return await detail(path)
+  }
   async function updateRegex(path, key, patch) {
     const normalized = normalizeResourcePath(path, 'preset')
     await presetEditor.updateRegex(normalized, key, patch)
@@ -292,7 +300,7 @@ export function createPresetLibrary({ resources: fileResources, state: profileDa
   return Object.freeze({ read: readPreset, readDocument: readPresetDocument, detail,
     catalog, select, import: importPreset, export: exportPreset, preview: previewPreset,
     listForGeneration, readForGeneration,
-    updateEntry, updateRegex, moveEntry, migrate, restoreChat: restoreRetiredPlanChat,
+    updateEntry, updateRegex, moveEntry, addEntry, deleteEntry, migrate, restoreChat: restoreRetiredPlanChat,
     snapshotDocuments: Object.freeze({ hydrate: hydratePresetSnapshot, load: function (digest) { return snapshotPool.load(snapshotKey(digest)) },
       save: async function (digest, documents) {
         if (await snapshotPool.save(snapshotKey(digest), documents)) await pruneSnapshotPool(digest)
