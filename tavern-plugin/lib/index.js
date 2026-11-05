@@ -2555,7 +2555,7 @@ export async function apply(ctx) {
     resourceVersion: async chat => {
       if (!chat.cardPath || chat.mode === 'card') return ''
       // machine-local mute changes invalidate the cached helper-script view.
-      return JSON.stringify(await Promise.all([readCardResourceVersions(chat), tavernExtensionSettings.version(), promptTemplateGlobalVariables.version()]))
+      return JSON.stringify(await Promise.all([readCardResourceVersions(chat), worldBooks.catalogRevision(), tavernExtensionSettings.version(), promptTemplateGlobalVariables.version()]))
     },
     readChanges: chatPersistence.readChangedIndices,
     readViewDelta: chatPersistence.readViewDelta,

@@ -346,6 +346,8 @@
                 + 'installEventApi:' + installTavernHelperEventApi.toString() + ','
                 + 'createRegexEngine:' + createTavernRegexEngine.toString() + ','
                 + 'installRegexApi:' + installTavernHelperRegexApi.toString() + ','
+                + 'legacyWorldbookPatch:' + tavernLegacyWorldbookPatch.toString() + ','
+                + 'installWorldbookCreation:' + installTavernWorldbookCreationApi.toString() + ','
 				+ 'createEvents:' + createTavernHelperEventBus.toString() + ','
 				+ 'createPopup:' + createTavernHelperPopup.toString() + ','
 				+ 'installCompatibility:' + installTavernCompatibilityDiagnostics.toString() + ','

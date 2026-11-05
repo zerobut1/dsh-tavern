@@ -401,11 +401,11 @@ export function createTavernScriptHostAdapter(options = {}) {
     if (template) assertTemplateChat(chat); else await assertScriptEnabled(chat)
     const card = await options.readCard(chat)
     const record = await options.worldBooks.bound(chat.cardPath, card, chat)
-    if (record === null) throw new Error('当前人物卡没有绑定世界书')
     const name = str(requestedName).trim()
-    if (name !== '' && name !== 'current' && name !== str(record.view.displayName)) {
-      throw new Error('当前兼容层只能访问人物卡绑定的世界书: ' + name)
+    if (name !== '' && name !== 'current' && name !== str(record?.view.displayName)) {
+      return { chat, record: await options.worldBooks.named(name) }
     }
+    if (record === null) throw new Error('当前人物卡没有绑定世界书')
     // A settlement transaction reads its own draft; the written-book cache only holds committed writes.
     const written = transaction ? undefined : writtenWorldbooks.get(str(sessionId))
     if (written === undefined) return { chat, record, transaction, sessionId }
@@ -414,6 +414,14 @@ export function createTavernScriptHostAdapter(options = {}) {
     if (written.key === worldbookKey(record) && written.version === scriptWorldbookVersion(record)) return { chat, record: written.record, transaction, sessionId }
     writtenWorldbooks.delete(str(sessionId))
     return { chat, record, transaction, sessionId }
+  }
+
+  async function createWorldbook(sessionId, name) {
+    const chat = await resolveChat(sessionId)
+    await assertScriptEnabled(chat)
+    if (settlement.has(str(sessionId))) throw new Error('MVU 结算事务不能创建跨存储的世界书')
+    const created = await options.worldBooks.create(name)
+    return { created, names: await options.worldBooks.names() }
   }
 
   async function serializeWorldbook(cardPath, work) {
@@ -814,6 +822,7 @@ export function createTavernScriptHostAdapter(options = {}) {
     updateMessages,
     createMessages,
     getWorldbook,
+    createWorldbook,
     replaceWorldbook,
     patchWorldbook,
     readFullPromptTemplateState,
