@@ -490,7 +490,7 @@
 				const content = pluginHtml ? pluginHtml.html : String(part.content !== undefined ? part.content : part.html || "");
 				// Keep the original frame identity when markers are moved after its HTML.
 				const html = options.trustedCardMode === true && !options.openingPreview && parseTavernInlineFragment(content, window.document)
-					? h(TavernInlineFragment, { key: index, content: content })
+					? h(TavernInlineFragment, { key: index, content: content, scriptLayer: options.scriptLayer })
 					: h(TavernMessageFrame, { key: index, content: content, sessionId: options.sessionId, turn: options.turn, partIndex: index, frameOwner: options.frameOwner, frameSizing: options.frameSizing, helperContext: options.helperContext, helperContextReader: options.helperContextReader, openingPreview: options.openingPreview, onSelectOpening: options.onSelectOpening, onSubmitOpening: options.onSubmitOpening, trustedCardMode: options.trustedCardMode, eager: options.eagerFrame, executeSlash: options.executeSlash });
 				return pluginHtml && pluginHtml.after ? h(React.Fragment, { key: index }, html, pluginHtml.after) : html;
 			});
