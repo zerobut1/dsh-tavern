@@ -1217,6 +1217,8 @@ window.__ModuleLoader__.load({
 
 // @include features/reply-observer.js
 
+// @include features/composer-enter.js
+
 // @include features/speech.js
 
 // @include features/music.js
@@ -1649,6 +1651,7 @@ function clipReplayCore() {
 			assistantRendererFeature.register({ ctx: ctx, slots: slots });
 			storyTranscriptFeature.register({ ctx: ctx, slots: slots });
 			tavernReplyObserverFeature.register({ ctx: ctx, slots: slots });
+			registerTavernComposerEnter(ctx, slots);
 			ctx.effect(function () {
 				return slots.inject("conversation.input.right", function () { return slots.register({
 					name: "conversation.input.right",
