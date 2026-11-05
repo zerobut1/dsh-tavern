@@ -64,7 +64,7 @@ function callIdOf(message, text) {
  * @param options - `toolName` names the submission tool; `receipt` overrides the
  *   tool output text; `preserve(message, index)` opts a message out (the input of
  *   the turn being requested must stay the prompt). All optional, but without a
- *   tool name nothing changes.
+ *   tool name nothing changes. `projectText` filters assistant bodies before replay.
  *   `layout` selects which messages qualify (see `storyHistoryLayout`): the
  *   default replays model replies and player messages, and leaves instructions
  *   (plugin, world book, rules) in their native shape.
@@ -91,7 +91,9 @@ export function projectHistoryAsToolCalls(messages, options = {}) {
       projected.push(message)
       return
     }
-    const text = message.content.map(function (block) { return str(block.text) }).join('')
+    const body = message.content.map(function (block) { return str(block.text) }).join('')
+    const text = message.role === 'assistant' && typeof options.projectText === 'function' ? str(options.projectText(body)) : body
+    if (text.trim() === '') { changed = true; return }
     const callId = callIdOf(message, text)
     const role = layout.text ? 'user' : 'assistant'
     // A tool call is emitted by the assistant, so a replayed player message is

@@ -327,7 +327,8 @@ export function createNativePlayOrchestrationStrategy(options) {
         // Resolved here because the request projection below is synchronous.
         historyToolCall: submitOffered,
         storyOutputToolCall: outputWanted && submitVisible,
-        historyLayout: typeof options.historyLayout === 'function' ? String(await options.historyLayout() || 'story') : 'story'
+        historyLayout: typeof options.historyLayout === 'function' ? String(await options.historyLayout() || 'story') : 'story',
+        historyTextProjector: submitOffered && typeof options.historyTextProjector === 'function' ? await options.historyTextProjector(sessionId) : undefined
       })
     }
     if (Number(payload.step) === 1) {
@@ -402,7 +403,8 @@ export function createNativePlayOrchestrationStrategy(options) {
         toolName: STORY_SUBMIT_TOOL_NAME,
         layout: staged.historyLayout,
         // `everything` deliberately replays the input too, leaving a receipt last.
-        preserve: staged.historyLayout === 'everything' ? null : (_message, index) => index === inputIndex
+        preserve: staged.historyLayout === 'everything' ? null : (_message, index) => index === inputIndex,
+        projectText: staged.historyTextProjector
       })
       if (historyMessages !== request.messages) request = Object.assign({}, request, { messages: historyMessages })
     }

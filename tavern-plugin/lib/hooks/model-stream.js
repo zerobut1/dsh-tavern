@@ -2,7 +2,7 @@ import { promptSection } from '../domain/prompt-section.js'
 import { createModelStreamProgress } from '../domain/model-stream-progress.js'
 import { assertFrozenStageRequest } from '../domain/stage-shared-context.js'
 import { createImportContextPreparation, needsImportContextPreparation } from '../domain/import-context-preparation.js'
-import { createStoryCompactionRequest, nativelyRetainedRounds, retainRecentStoryRounds, storyVolumeMerge, storyVolumePlan, usesStoryCompaction } from '../domain/story-compaction.js'
+import { createStoryCompactionRequest, nativelyRetainedRounds, projectStoryRequestHistory, retainRecentStoryRounds, storyVolumeMerge, storyVolumePlan, usesStoryCompaction } from '../domain/story-compaction.js'
 import { installCompactionRequestProjection } from '../domain/compaction-request.js'
 import { installWorkspaceInstructionPresentation } from '../domain/workspace-instruction-presentation.js'
 import { presentModelError } from '../domain/model-error-presentation.js'
@@ -30,6 +30,7 @@ export function registerModelStreamHooks({
   replyStarted,
   requestCoordinates,
   storyRetention,
+  storyHistoryProjector,
   runtimePrompt,
   sessionStateForSession,
   recentStateForSession,
@@ -94,7 +95,8 @@ export function registerModelStreamHooks({
         prefix = [prefix[0], ...volumes.merge.volumes.map(volume => volume.text), ...prefix.slice(1)]
       }
     }
-    return { ...retainRecentStoryRounds(story, retention.rounds - natively, retention), prefix }
+    const retained = retainRecentStoryRounds(story, retention.rounds - natively, retention)
+    return { ...retained, request: projectStoryRequestHistory(retained.request, retention.projectAssistantText), prefix }
   }, {
     // Foreground summaries use the body's model; background Agents keep their task route.
     route: sessionId => backgroundAgentRunner.owns(sessionId) ? null : modelSelection(str(sessionId))
@@ -155,6 +157,13 @@ export function registerModelStreamHooks({
         const projected = await fullTemplateRuntime.forSession(ownerSessionId).projectRequestProjection({ messages: options.messages, system: options.system, model: options.model })
         yield * ctx.llm.stream(markRequestHandled({ ...options, ...projected }, 'full-template'))
         return
+      }
+      if (!backgroundContext && usesStoryCompaction(chat) && options.purpose === undefined && chat.requestMode !== 'sillytavern' && !requestHandledBy(options, 'story-history')) {
+        const projected = projectStoryRequestHistory(options, await storyHistoryProjector(ownerSessionId))
+        if (projected !== options) {
+          yield * ctx.llm.stream(markRequestHandled(projected, 'story-history'))
+          return
+        }
       }
       let requestRecord = null
       // Agents a plugin creates under a game are not Tavern's own sessions; log them

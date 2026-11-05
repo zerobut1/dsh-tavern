@@ -169,6 +169,7 @@ import { createCardPreparation,rawData } from './domain/card-preparation.js'
 import { cardAssetWorkspaceRevision, hasCardAssetBindings } from './card-asset-bindings.js'
 import { withoutPlayerChoices } from './domain/card-export-settings.js'
 import { withGlobalRegexScripts, composeTavernRegexScripts } from './domain/card-extension-reading.js'
+import { applyTavernRegexText } from './domain/tavern-regex-display.js'
 import { projectCardOpeningPreviews } from './domain/card-opening-previews.js'
 import { createConversationInitialization } from './domain/conversation-initialization.js'
 import { assertConversationForkable, conversationForkReceipt, forkConversationChat } from './domain/conversation-fork.js'
@@ -2991,6 +2992,12 @@ export async function apply(ctx) {
     lockEvent: event => backgroundAgentRunner.noteLock(event)
   })
   const overflowingCompactions = new Set()
+  async function storyHistoryProjector(sessionId) {
+    const chat = await chatHeaderForSession(sessionId, ['cardPath', 'cardDefinitionSnapshot', 'runtimePresetSnapshot'])
+    const extensions = chat ? await readCardExtensions(chat.cardPath, chat) : null
+    const regexScripts = composeTavernRegexScripts(extensions, chat?.runtimePresetSnapshot?.regexScripts)
+    return text => applyTavernRegexText(text, regexScripts, { placement: 2, isMarkdown: false, isEdit: false, depth: 0 }).text
+  }
   // Rounds kept verbatim after a story summary, bounded by a share of the model window.
   async function storyRetention({ sessionId, provider, model, signal }) {
     // Provider-confirmed overflow must shrink as far as possible; it keeps no extra rounds.
@@ -3005,7 +3012,8 @@ export async function apply(ctx) {
       // DSH_TAVERN_STORY_VOLUME_BUDGET (tokens) overrides it, to test the merge on a large-window model.
       volumeBudget: Number(process.env.DSH_TAVERN_STORY_VOLUME_BUDGET) > 0 ? Number(process.env.DSH_TAVERN_STORY_VOLUME_BUDGET)
         : Number.isFinite(window) && window > 0 ? Math.floor(window * STORY_VOLUMES_WINDOW_SHARE) : 30000,
-      estimate: text => meter?.estimateMessage ? meter.estimateMessage({ role: 'user', content: [{ type: 'text', text }] }) : Math.ceil(text.length / 4)
+      estimate: text => meter?.estimateMessage ? meter.estimateMessage({ role: 'user', content: [{ type: 'text', text }] }) : Math.ceil(text.length / 4),
+      projectAssistantText: await storyHistoryProjector(sessionId)
     }
   }
   const pendingCompactionMessages = new WeakMap()
@@ -4093,6 +4101,7 @@ export async function apply(ctx) {
       // Experiment switch for the replay layout: a word in a file, read per request
       // so one restart covers every arm. Absent or unreadable means the shipped one.
       historyLayout: async () => readHistoryLayoutFile(process.env.DSH_TAVERN_HISTORY_LAYOUT_FILE || historyLayoutFile()),
+      historyTextProjector: storyHistoryProjector,
       systemAppend: () => runtimePrompt('system-append'),
       stagedRequests: runtimePresetSnapshots,
       modeFor: async function (sessionId) { return await turnOrchestrator.modeFor(sessionId) },
@@ -4190,6 +4199,7 @@ export async function apply(ctx) {
     worldbookRecallLog,
     openReplyObservers: presentationObservers.openReply,
     storyRetention,
+    storyHistoryProjector,
   })
   registerTurnLifecycleHooks({
     pluginBodyGeneration,

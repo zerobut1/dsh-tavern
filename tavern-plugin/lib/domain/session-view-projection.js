@@ -64,7 +64,8 @@ export function createSessionViewProjection({
     const presetRegexScripts = Array.isArray(preset?.regexScripts) ? preset.regexScripts : []
     let display = await requestPerformance.stage('historyProjection', () => incrementalReplyView.project(persisted ? chat : {...chat,_storageRevision:undefined}, {
       charName:chat.cardName, macroState:chat.macroState,
-      regexScripts:composeTavernRegexScripts(extensions,presetRegexScripts,chat.regexOverrides&&chat.regexOverrides.preset), placement:2, isMarkdown:true, isEdit:false, depth:0
+      regexScripts:composeTavernRegexScripts(extensions,presetRegexScripts,chat.regexOverrides&&chat.regexOverrides.preset),
+      legacyFormattingRegexScripts:presetRegexScripts.length ? (extensions.characterRegexScripts || []).concat(extensions.globalRegexScripts || []) : undefined, placement:2, isMarkdown:true, isEdit:false, depth:0
     }, {charName:chat.cardName,macroState:chat.macroState,regexScripts:extensions.regexScripts}, {shared:true}))
     display = await liveCardUpdate.project(chat,card,display,{charName:chat.cardName,macroState:chat.macroState,regexScripts:extensions.regexScripts})
     display.projections = withLegacyPresentationProjection(chat,display.projections).map(projection =>
@@ -491,6 +492,7 @@ export function createSessionViewProjection({
       let replyDisplay = await requestPerformance.stage('historyProjection', () => incrementalReplyView.project(chat, {
         charName: chat.cardName, macroState: chat.macroState,
         regexScripts: composeTavernRegexScripts(cardExtensions, presetRegexScripts, chat.regexOverrides && chat.regexOverrides.preset),
+        legacyFormattingRegexScripts: presetRegexScripts.length ? (cardExtensions.characterRegexScripts || []).concat(cardExtensions.globalRegexScripts || []) : undefined,
         placement: 2, isMarkdown: true, isEdit: false, depth: 0
       }, { charName: chat.cardName, macroState: chat.macroState, regexScripts: cardExtensions.regexScripts }, {shared:true}))
       const renderChat = {...chat,messages:createScopedMessages(chat.messages.length,[],index=>{const message=chat.messages[index];return message.variables ? message : {...message,variables:helperCore.messages[index]?.swipes_data || []}})}
