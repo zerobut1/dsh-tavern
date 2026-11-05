@@ -89,7 +89,9 @@ export function createBackgroundTaskCoordinator(options = {}) {
     const inspected = timeline.inspect({ chat })
     const allOperations = Object.values(inspected.operations || {})
     const operations = allOperations.filter(function (operation) {
-      return operation && operation.kind === 'agent' && (slot === undefined || slotOf(operation.role) === slot)
+      return operation && operation.kind === 'agent' &&
+        str(operation.basedOn && operation.basedOn.branchId) === inspected.branchId &&
+        (slot === undefined || slotOf(operation.role) === slot)
     }).sort(function (left, right) {
       return (Number(right.createdAt) || 0) - (Number(left.createdAt) || 0)
     })

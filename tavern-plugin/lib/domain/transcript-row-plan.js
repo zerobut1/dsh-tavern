@@ -1,5 +1,6 @@
 import { surfaceReplacementRange } from './session-events.js'
 import { createImmutableTurnFields } from './freeze-json.js'
+import { isNativeRepairSource } from './message-source.js'
 
 // The conversation page's row plan (Wiki「设计：transcript-row-plan」). The host draws
 // every append-origin message forever; instead of listing what to hide, say for each
@@ -157,6 +158,9 @@ export function createTranscriptFold() {
         continue
       }
       if (event.type !== 'assistant/message') continue
+      // Repair restores the model's context, often several rounds in one edit
+      // step. Its copies must not move replies away from their original inputs.
+      if (isNativeRepairSource(event.data?.message?.source)) continue
       if (event.surfaceOp?.op === 'replace') {
         const range = surfaceReplacementRange(event.surfaceOp)
         for (const [seq, turn] of gameReplies) if (seq >= range.start && seq <= range.end) {

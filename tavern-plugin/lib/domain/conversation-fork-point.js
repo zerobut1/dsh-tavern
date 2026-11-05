@@ -19,7 +19,8 @@ export async function conversationStateAtTurn(source, requestedTurn, readRevisio
     const identity = state.id + ':' + state._storageRevision
     if (visited.has(identity)) throw new Error('历史快照链重复，无法安全分叉')
     visited.add(identity)
-    const next = (state.timeline?.checkpoints || []).find(item => Number(item.turn) > turn && Number.isSafeInteger(item.beforeRevision))
+    const nativeTurn = Number(state.regeneratedDshTurns?.[turn]) || turn
+    const next = (state.timeline?.checkpoints || []).find(item => Number(item.turn) > nativeTurn && Number.isSafeInteger(item.beforeRevision))
     const parent = state.forkedFrom
     const chatId = next ? state.id : parent?.stateChatId || parent?.chatId
     const revision = next ? next.beforeRevision : parent?.stateRevision ?? parent?.storageRevision

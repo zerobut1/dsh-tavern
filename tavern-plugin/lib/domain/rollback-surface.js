@@ -9,7 +9,7 @@ import { createSurfaceOwnership, planSurfaceRecovery, planSurfaceRange, SurfaceR
 import { randomUUID } from 'node:crypto'
 import { inputKind, isTurnInput, isNewTurnInput, isNewPlayerInput, isFailedTurnEnd } from './session-turn-input.js'
 import { resolveRoundAnchor } from './round-anchor.js'
-import { isPluginSource, isProducerSource, sourceProducerName } from './message-source.js'
+import { isPluginSource, isProducerSource, isNativeRepairSource, sourceProducerName } from './message-source.js'
 
 function object(value) {
   return value !== null && typeof value === 'object' ? value : null
@@ -124,11 +124,12 @@ export function supersededRegenerationTurns({ events = [], nodes = [], keepTurns
   const rounds = []
   for (const event of events) {
     if (event?.type !== 'assistant/message' || event.surfaceOp?.op !== 'replace') continue
+    if (isNativeRepairSource(event.data?.message?.source)) continue
     // Only the replacement that is still the current node speaks for the page;
     // a chain of regenerations supersedes its own earlier replacements.
     if (visible.size && !visible.has(Number(event.seq))) continue
-    // Only a regeneration writes a body for round N into a later turn; a seed or
-    // repair rewrite carries no story turn and leaves the opening alone.
+    // Only regeneration changes which row draws a round. Repair copies also
+    // carry story turns, but restore model context without moving the UI.
     if (!(Number(event.data?.message?.source?.tavernStoryTurn) > 0)) continue
     const story = Number(event.data?.message?.source?.tavernStoryTurn)
     const currentTurn = Number(event.data?.turn)
@@ -205,6 +206,9 @@ export function projectedReplyTurns({ events = [], nodes = [] } = {}) {
   const turns = new Map()
   for (const event of events) {
     if (event?.type !== 'assistant/message' || event.surfaceOp?.op !== 'replace') continue
+    // A full repair can cover several rounds: the range's last reply belongs
+    // to a different input, not to this repair copy's story turn.
+    if (isNativeRepairSource(event.data?.message?.source)) continue
     if (visible.size && !visible.has(Number(event.seq))) continue
     const source = event.data?.message?.source
     // Repair rewrites a span of model context, not a regeneration projection. Its

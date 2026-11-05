@@ -50,6 +50,11 @@ export function isProducerSource(source, name) {
   return sourceProducerName(source) === name
 }
 
+/** Context-only copies written by native-surface repair, not regenerated UI replies. */
+export function isNativeRepairSource(source) {
+  return source?.kind === 'model' && source.provider === 'dsh-tavern' && source.model === 'native-repair'
+}
+
 /** DSH 原生 system-prompt 行：迁移前是插件包装，迁移后是自有 kind。 */
 export function isSystemPromptSource(source) {
   const kind = source === null || typeof source !== 'object' ? undefined : source.kind

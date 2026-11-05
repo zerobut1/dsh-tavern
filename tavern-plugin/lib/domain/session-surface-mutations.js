@@ -135,6 +135,9 @@ export function isTavernSurfaceEdit(session, event, priorNodes, resolvePreset) {
   if (source?.kind !== 'model') return false
   if (source.provider === 'dsh-tavern' && source.model === 'synthetic-trajectory' &&
       message.id?.startsWith('tavern-seed-trajectory:')) return true
+  // Repair restores saved replies and greetings without running a model step.
+  if (source.provider === 'dsh-tavern' && source.model === 'native-repair' && event.data.usage === undefined &&
+      (message.id?.startsWith('tavern-native-repair:') || message.id?.startsWith('tavern-opening:'))) return true
   const owned = source.provider === 'dsh-tavern' && source.model === 'reply-projection'
   const replacement = event.surfaceOp
   const refs = event.sourceEventSeqs

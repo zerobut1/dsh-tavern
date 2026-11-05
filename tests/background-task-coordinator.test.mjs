@@ -36,6 +36,17 @@ function coordinatorHarness(options = {}) {
   return { coordinator, timeline, current: function () { return current }, writes }
 }
 
+test('手动后台指令与自动结算共用书记任务槽和会话', async () => {
+  const { coordinator, current } = coordinatorHarness()
+  const settlement = await coordinator.begin(current(), 'settlement')
+  await assert.rejects(coordinator.begin(current(), 'command'), error => error.code === 'BACKGROUND_BUSY')
+  await settlement.commit({ participant: { sessionId: 'scribe', lifetime: 'chat', boundary: 12 } })
+  const command = await coordinator.begin(current(), 'command')
+  assert.equal(command.participantRequest.sessionId, 'scribe')
+  await assert.rejects(coordinator.begin(current(), 'settlement'), error => error.code === 'BACKGROUND_BUSY')
+  await command.commit({ stateChanged: false })
+})
+
 for (const conflict of [false,true,'cancel']) test(`narrow background mutations preserve concurrent history: ${conflict}`,async t=>{
   const {mkdtemp,rm}=await import('node:fs/promises')
   const {tmpdir}=await import('node:os')
