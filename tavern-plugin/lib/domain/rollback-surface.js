@@ -206,9 +206,6 @@ export function projectedReplyTurns({ events = [], nodes = [] } = {}) {
   const turns = new Map()
   for (const event of events) {
     if (event?.type !== 'assistant/message' || event.surfaceOp?.op !== 'replace') continue
-    // A full repair can cover several rounds: the range's last reply belongs
-    // to a different input, not to this repair copy's story turn.
-    if (isNativeRepairSource(event.data?.message?.source)) continue
     if (visible.size && !visible.has(Number(event.seq))) continue
     const source = event.data?.message?.source
     // Repair rewrites a span of model context, not a regeneration projection. Its

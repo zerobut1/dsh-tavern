@@ -8,7 +8,7 @@ import { locateRollbackSurface, projectedReplyTurns } from '../tavern-plugin/lib
 import { nativeOpeningMessageId } from '../tavern-plugin/lib/domain/native-opening.js'
 import { planNativeSurfaceRepair, recordNativeSurfaceRepair, repairNativeSurface } from '../tavern-plugin/lib/domain/native-surface-repair.js'
 import { createSessionStateView } from '../tavern-plugin/lib/domain/chat-session-state.js'
-import { planTranscriptRows, planShowsRow } from '../tavern-plugin/lib/domain/transcript-row-plan.js'
+import { planTranscriptRows, planShowsRow, planStoryTurn } from '../tavern-plugin/lib/domain/transcript-row-plan.js'
 
 const model = { kind: 'model', provider: 'test', model: 'test' }
 const textOf = event => (event.data.message?.content || event.data.content || []).map(block => block.text).join('')
@@ -48,7 +48,7 @@ test('一致的存档不写任何东西', () => {
   assert.deepEqual(h.session.surface.nodes, before)
 })
 
-test('多轮上下文修复不把旧正文映射到后来的输入，也不显示修复副本', () => {
+test('上下文修复沿用上游真实编辑轮映射，每轮输入保留且正文只显示一次', () => {
   for (const scope of ['tail', 'full']) {
     const h = game(3, { id: 'transcript-' + scope })
     if (scope === 'full') h.chat.messages.splice(1, 0, { role: 'system', text: '开局旁白' })
@@ -56,16 +56,17 @@ test('多轮上下文修复不把旧正文映射到后来的输入，也不显�
     assert.equal(repair(h).applied, true)
     const events = sessionEvents(h.session)
     const view = createSessionStateView({ activity: () => ({ busy: false }), evidence: () => ({ session: h.session, events }) }).rollback(h.chat)
-    assert.deepEqual(view.regeneratedDshTurns, {}, scope + ': 修复不是重生成，不改原有回复的显示轮次')
-    assert.deepEqual(view.supersededDshTurns, [], scope + ': 修复不作废原有正文行')
+    assert.deepEqual(view.regeneratedDshTurns, h.chat.regeneratedDshTurns, scope + ': 使用修复实际记录的轮次，不从替换范围末尾猜测')
+    assert.deepEqual(view.supersededDshTurns, [], scope + ': 修复不作废无关正文行')
     const rows = planTranscriptRows({ chat: h.chat, events })
+    const nativeTurns = [...new Set([1, ...events.filter(event => event.type === 'turn/start').map(event => event.data.turn)])]
     for (const turn of [1, 2, 3, 4]) {
-      assert.equal(planShowsRow(rows, { turn, kind: 'user' }), true)
-      assert.equal(planShowsRow(rows, { turn, kind: 'assistant-step' }), true)
+      assert.equal(planShowsRow(rows, { turn, kind: 'user' }), true, scope + ': 原输入留在原轮次')
+      const drawn = nativeTurns.filter(native => planShowsRow(rows, { turn: native, kind: 'assistant-step' }) && planStoryTurn(rows, native) === turn)
+      assert.equal(drawn.length, 1, scope + ': 每轮正文恰好显示一次，不能重复或消失')
     }
-    for (const event of events.filter(event => event.type === 'turn/start' && event.data.turn > 4)) {
-      assert.equal(planShowsRow(rows, { turn: event.data.turn, kind: 'user' }), false)
-      assert.equal(planShowsRow(rows, { turn: event.data.turn, kind: 'assistant-step' }), false)
+    for (const turn of nativeTurns.filter(turn => turn > 4)) {
+      assert.equal(planShowsRow(rows, { turn, kind: 'user' }), false, scope + ': 不显示修复时写入的输入副本')
     }
   }
 })
