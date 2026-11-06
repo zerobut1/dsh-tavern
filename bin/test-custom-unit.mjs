@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 // Fixed synchronization gate. Run EVERY case in EVERY listed file after EVERY
 // upstream sync, regardless of its diff. Never select tests by the current conflict.
@@ -32,8 +32,10 @@ const tests = [...upstreamUnits, ...customUnits]
 // Do not inherit a shell's DSH host selection, module preload or package lookup.
 const env = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
   !/^(DSH_|TAVERN_)/.test(name) && !['NODE_OPTIONS', 'NODE_PATH'].includes(name)))
+env.TAVERN_PROJECT_UNIT_TEST = '1'
 console.log(`固定单元检查：${upstreamUnits.length} 份上游兼容测试 + ${customUnits.length} 份自定义最小测试（含共享文件中的自定义用例）。`)
-const result = spawnSync(process.execPath, ['--test', ...tests.map(name => path.join(root, 'tests', name + '.test.mjs'))], {
+const preload = pathToFileURL(path.join(root, 'tests/fixtures/project-unit-preload.mjs')).href
+const result = spawnSync(process.execPath, ['--import', preload, '--test', ...tests.map(name => path.join(root, 'tests', name + '.test.mjs'))], {
   cwd: root, env, stdio: 'inherit', windowsHide: true
 })
 if (result.error) console.error(result.error.message)
