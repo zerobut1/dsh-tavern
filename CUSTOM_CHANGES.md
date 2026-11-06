@@ -158,6 +158,8 @@ Windows 下通过 `file:` URL 加载测试预加载模块，以 `fileURLToPath` 
 
 2026-11-02 修正具体的正文错位问题：`native-repair` 写入的上下文副本不参与重生成映射、旧正文作废判断和页面回复行选择，页面继续在各轮原位置显示存档正文。否则补回开局旁白的整批修复会将第 1 轮错误映射到最后一个输入后，单轮修复也会将原正文移到编辑轮。此项只调整显示推导，不迁移或改写用户存档；用虚构记录覆盖尾部和整批修复，并将上游行计划单元测试纳入 custom 入口。
 
+2026-11-06 起采用上游 `210856f40` 的稳定楼层与实际编辑轮映射，移除本地整段跳过修复消息的行计划补丁，以及 `projectedReplyTurns` 中重复的来源过滤。保留上游尚未覆盖的旧正文作废保护、分叉快照定位、分支结算状态、历史编辑识别和压缩检查点来源保护。现有最小单元改为检查每轮输入保留、正文恰好显示一次和实际修复映射，不要求正文必须停留在旧原生行。
+
 入口：[session-surface-mutations.js](tavern-plugin/lib/domain/session-surface-mutations.js)、[native-surface-repair.js](tavern-plugin/lib/domain/native-surface-repair.js)、[compaction-checkpoint.js](tavern-plugin/lib/domain/compaction-checkpoint.js)、[template-history.js](tavern-plugin/lib/domain/template-history.js)。
 
 ### 11. 全局正则管理及统一过滤
