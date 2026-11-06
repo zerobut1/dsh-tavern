@@ -13,7 +13,8 @@ function request(path, options = {}) {
 }
 async function fixture(t, options = {}) {
   const root = await mkdtemp(join(tmpdir(),'pack-transport-')), routes = new Map()
-  const transport = createAssetPackTransport({assetRoot:join(root,'assets'),...options})
+  // Transport units cover routes and authority; audio measurement has its own tests.
+  const transport = createAssetPackTransport({assetRoot:join(root,'assets'),measureAudio:async () => ({lufs:-18,peak:-1,v:1}),...options})
   const carrier = {fetch:{register(route) {
     assert.equal(routes.has(route.path),false,'no duplicate route')
     routes.set(route.path,route); return () => routes.delete(route.path)
