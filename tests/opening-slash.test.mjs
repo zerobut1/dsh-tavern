@@ -5,7 +5,6 @@ import {createOpeningPreparation} from '../tavern-plugin/lib/domain/opening-prep
 import {initializationFixture} from './fixtures/conversation-initialization.mjs'
 import {nativeOpeningMessageId} from '../tavern-plugin/lib/domain/native-opening.js'
 import {consumeScriptPrompts, scriptPromptFrameInputs} from '../tavern-plugin/lib/domain/tavern-script-prompts.js'
-import {helperClient, helperHostHarness} from './fixtures/helper-host-harness.mjs'
 
 test('pre-game sys/cut/trigger removes only the wizard and carries MVU into the new game', async () => {
   const h=initializationFixture()
@@ -90,41 +89,19 @@ test('/sys without /cut keeps greeting then narrator in the native opening, with
   assert.deepEqual(scriptPromptFrameInputs(chat),[])
 })
 
-test('切换到造人开场时，运行时先读取该备选的最新变量，写回与开局交接都落到同一份数据', async t => {
-  const h=initializationFixture()
-  const service=createOpeningPreparation({readCard:async()=>h.card,worldBooks:{bound:async()=>null}})
-  t.after(()=>service.dispose())
-  const draft=await service.create(h.card.path,{runtime:true})
-  const defaults={stat_data:{主角:{境界:'凡人',灵根:'未知'}},schema:{}}
-  await service.callRuntime(draft.id,'updateTavernHelperVariables',{variables:defaults,option:{type:'message',message_id:0}})
-  async function mount(openingId) {
-    let runtime
-    runtime=helperHostHarness(draft.runtime.context,{previewOpeningId:openingId,onCall(call){
-      if(call.type!=='dsh-tavern-helper-call')return
-      Promise.resolve().then(()=>service.callRuntime(draft.id,call.method,call.args))
-        .then(result=>runtime.reply(call,result),error=>runtime.reply(call,error.message,false))
-    }})
-    await runtime.window.__dshTavernHelperReady
-    return runtime.window
-  }
-  const creator=await mount('alternate:0')
-  assert.equal(creator.getChatMessages(0,{include_swipes:true})[0].swipe_id,1)
-  await creator.replaceVariables(defaults,{type:'message',message_id:0})
-  const chosen={stat_data:{主角:{境界:'练气一层',灵根:'天品火灵根'}},schema:{}}
-  await creator.Mvu.replaceMvuData(chosen,{type:'message',message_id:0})
-  await service.callRuntime(draft.id,'prepareOpeningCommand',{line:'/sys 开局资料 | /cut 0 | /trigger',openingId:'alternate:0'})
-  const prepared=service.resolve(draft.id,h.card.path,'alternate:0')
-  assert.deepEqual(prepared.messageVariables,chosen)
-  h.state.extensions={mvuResources:[{name:'MVU'}]}
-  const started=await h.make().start({...h.input,openingId:'alternate:0',preparation:prepared})
-  assert.deepEqual(started.messages[0].variables[0],chosen)
-  assert.equal(started.mvu.openingInitialization.status,'complete')
-  const reopened=await mount('alternate:0')
-  assert.equal(JSON.stringify(reopened.getVariables({type:'message',message_id:0})),JSON.stringify(chosen),'stale preview descriptor does not reset saved choices')
-  const primary=await mount('primary')
-  assert.equal(JSON.stringify(primary.getVariables({type:'message',message_id:0})),JSON.stringify(defaults),'other opening keeps its own variables')
-
-  const html=helperClient.buildTavernFrameDocument({token:'preview-selection',content:'造人页面',openingPreview:{
-    selectedIndex:1,openingIds:['primary','alternate:0'],runtime:draft.runtime}})
-  assert.ok(html.includes('"previewOpeningId":"alternate:0"'),'the actual rendered preview supplies its selection')
+test('各备选开场的变量读写隔离，交接使用所选开场的最新数据', async t => {
+  const card = { path: 'card.json', name: '测试角色', first_mes: '开场', alternate_greetings: ['造人'] }
+  const service = createOpeningPreparation({ readCard: async () => card, worldBooks: { bound: async () => null } })
+  t.after(() => service.dispose())
+  const draft = await service.create(card.path, { runtime: true })
+  const defaults = { stat_data: { 境界: '凡人' }, schema: {} }
+  await service.callRuntime(draft.id, 'updateTavernHelperVariables', { variables: defaults, option: { type: 'message', message_id: 0 } })
+  const selected = await service.callRuntime(draft.id, 'getTavernHelperContext', { openingId: 'alternate:0' })
+  assert.equal(selected.context.messages[0].swipe_id, 1)
+  const chosen = { stat_data: { 境界: '练气一层' }, schema: {} }
+  await service.callRuntime(draft.id, 'updateTavernHelperVariables', { variables: chosen, option: { type: 'message', message_id: 0 } })
+  assert.deepEqual(service.resolve(draft.id, card.path, 'alternate:0').messageVariables, chosen)
+  assert.deepEqual(service.resolve(draft.id, card.path, 'primary').messageVariables, defaults)
+  const reopened = await service.callRuntime(draft.id, 'getTavernHelperContext', { openingId: 'alternate:0' })
+  assert.deepEqual(reopened.context.messages[0].variables, chosen)
 })

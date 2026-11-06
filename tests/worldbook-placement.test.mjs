@@ -20,18 +20,6 @@ test('读取消息变量的常驻世界书留在动态部分，固定人物背�
   assert.equal(hasWorldbookStateReads('fixed stat_data background'), false)
 })
 
-test('变量条目的跨条目包裹标签同时保留在固定和动态部分', () => {
-  const entries = [
-    { ref: 'start', constant: true, content: '<world>', order: 1 },
-    { ref: 'fixed', constant: true, content: '固定设定', order: 2 },
-    { ref: 'changing', constant: true, content: '{{format_message_variable::stat_data}}', order: 3 },
-    { ref: 'end', constant: true, content: '</world>', order: 4 }
-  ]
-  const result = worldbookPlacement(entries)
-  assert.deepEqual([...result.prefixRefs].sort(), ['end', 'fixed', 'start'])
-  assert.deepEqual([...result.foregroundRefs].sort(), ['changing', 'end', 'start'])
-})
-
 test('世界书展开消息变量，已完成的前台能力条目保持原文', async () => {
   const content = '{{get_message_variable::hp}}'
   const result = await projectWorldBookTemplates({

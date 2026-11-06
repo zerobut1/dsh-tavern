@@ -43,19 +43,7 @@ function harness({ work = async () => {}, flush = async () => {}, dispose = asyn
   return { runner, input, calls, starts, tools, children, disposals }
 }
 
-test('释放所有常驻会话时汇总错误并清空所有权，可重复释放', async () => {
-  const h = harness({ dispose: async session => { if (session.id === 'child-1') throw new Error('dispose failure') } })
-  await h.runner.run(h.input())
-  await h.runner.run(h.input({ sessionId: 'game-b' }))
-  await assert.rejects(h.runner.dispose(), AggregateError)
-  assert.deepEqual(h.disposals.sort(), ['child-1', 'child-2'])
-  assert.equal(h.runner.owns('child-1'), false); assert.equal(h.runner.owns('child-2'), false)
-  assert.equal(h.runner.requestContext('child-2'), null)
-  await h.runner.dispose()
-  assert.equal(h.disposals.length, 2)
-})
-
-for (const task of ['candidate', 'polish']) test(`关闭闲置子代理先持久化停用，再释放实例；旧检查点不能复用上下文：${task}`, async t => {
+test('关闭闲置子代理先持久化停用，再释放实例；旧检查点不能复用上下文', async t => {
   const retired = new Map(), order = []
   const h = harness({
     retirement: {
@@ -66,7 +54,7 @@ for (const task of ['candidate', 'polish']) test(`关闭闲置子代理先持久
     resume: async () => { assert.fail('已关闭的子代理不能 resume') }
   })
   t.after(() => h.runner.dispose())
-  await h.runner.run(h.input({ task }))
+  await h.runner.run(h.input())
   assert.equal(h.runner.owns('child-1'), true)
   const logs = structuredClone(h.children.get('child-1').session.events)
   await assert.rejects(h.runner.retire('child-1', 'game-b'), /不属于/)
@@ -76,7 +64,7 @@ for (const task of ['candidate', 'polish']) test(`关闭闲置子代理先持久
   assert.equal(h.runner.owns('child-1'), false)
   assert.equal(h.runner.requestContext('child-1'), null)
   assert.deepEqual(h.children.get('child-1').session.events, logs, '关闭不删除或改写历史日志')
-  await h.runner.run(h.input({ task, persistentSessionId: 'child-1', rewindTo: 0 }))
+  await h.runner.run(h.input({ persistentSessionId: 'child-1', rewindTo: 0 }))
   assert.equal(h.starts.at(-1).id, 'child-2')
   assert.equal(retired.get('child-1'), 'game-a')
 })

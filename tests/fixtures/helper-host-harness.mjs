@@ -15,7 +15,7 @@ export function helperHostHarness(context = {}, options = {}) {
   const frameStorage = options.localStorage ? { token: 'storage-test', namespace: '', seed: Object.fromEntries(
     Array.from({ length: options.localStorage.length }, (_, i) => { const key = options.localStorage.key(i); return [key, options.localStorage.getItem(key)] })
   ) } : null
-  const html = helperClient.buildTavernHelperScriptDocument({ token: 'host-test', scripts, frameStorage, previewOpeningId: options.previewOpeningId, context: { compatibilityCapabilities: TAVERN_COMPATIBILITY_CAPABILITIES, ...context } })
+  const html = helperClient.buildTavernHelperScriptDocument({ token: 'host-test', scripts, frameStorage, context: { compatibilityCapabilities: TAVERN_COMPATIBILITY_CAPABILITIES, ...context } })
   let source = html.match(/<script data-dsh-tavern-helper-script>([\s\S]*?)<\/script>/)[1]
   const downloads = [
     'import(new URL("/api/dsh-tavern/vendor/runtime-assets/zod/index.mjs",document.baseURI).href)',

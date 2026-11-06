@@ -120,6 +120,17 @@ test('World Book Library 通过来源 adapter 原子编辑、导入、导出和�
   assert.deepEqual(run.removed, ['worldbooks/海港.json'])
 })
 
+test('已有本局角色定义的内嵌世界书读取库中更新，准备草稿仍读传入值', async () => {
+  const { library, cards } = harness()
+  const cardPath = 'cards/命运.json'
+  const pinned = clone(cards.get(cardPath))
+  cards.get(cardPath).character_book.entries[0].content = '库中最新设定'
+  const chat = { cardDefinitionSnapshot: pinned }
+  assert.equal((await library.bound(cardPath, pinned, chat)).view.entries[0].content, '库中最新设定')
+  assert.equal((await library.bound(cardPath, pinned)).view.entries[0].content, '钟楼只在午夜开放。')
+  assert.equal(pinned.character_book.entries[0].content, '钟楼只在午夜开放。')
+})
+
 test('按名称创建独立世界书，并发或重名不覆盖、不改变绑定或全局启用', async () => {
   const { library, files, bindings, cards } = harness()
   const before = clone([...cards])

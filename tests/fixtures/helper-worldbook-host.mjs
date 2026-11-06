@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile, rm, mkdir, readdir } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createProfileDataStore } from '../../tavern-plugin/lib/profile-data-store.js'
@@ -20,24 +20,15 @@ export async function createHelperWorldbookHost(embedded = false, multiple = fal
   await save('card.json', card)
   const chat = { id: 'audit', cardPath: 'card.json', mvu: { enabled: false }, messages: [] }
   const library = createWorldBookLibrary({
-    normalizePath(path) { if (!['book.json', 'card.json', 'extra.json'].includes(path) && !/^worldbooks\/[^/\\]+\.json$/.test(path)) throw Error('fixture path'); return path },
-    resources: {
-      list: async () => ['book.json', 'extra.json', ...(await readdir(join(directory, 'worldbooks')).catch(() => [])).map(name => 'worldbooks/' + name)],
-      readText: path => readFile(join(directory, path), 'utf8').catch(error => { if (error.code !== 'ENOENT') throw error }),
-      import: async (prepared, working) => {
-        await mkdir(join(directory, 'worldbooks'), { recursive: true })
-        const path = 'worldbooks/' + prepared.name
-        await writeFile(join(directory, path), JSON.stringify(working), { flag: 'wx' })
-        return path
-      },
-      write: (path, text) => writeFile(join(directory, path), text),
+    normalizePath(path) { if (!['book.json', 'card.json', 'extra.json'].includes(path)) throw Error('fixture path'); return path },
+    resources: { readText: path => readFile(join(directory, path), 'utf8'), write: (path, text) => writeFile(join(directory, path), text),
       bindingForCard: async () => multiple ? { kind: 'multiple', sources: [embedded ? { kind: 'embedded', cardPath: 'card.json', available: true } : { kind: 'standalone', path: 'book.json', available: true }, { kind: 'standalone', path: 'extra.json', available: true }] } : embedded ? { kind: 'default' } : { kind: 'standalone', path: 'book.json', available: true } },
     cards: { read: () => json('card.json'), update: async (_path, patch) => save('card.json', { ...await json('card.json'), ...patch }) },
     removeStandalone: async () => {}
   })
   const extensionSettings = createTavernExtensionSettings(createProfileDataStore({ dataRoot: directory }))
   const writes = []
-  const adapter = createTavernScriptHostAdapter({ hasScripts: async () => true, extensionSettings, resolveChat: async () => chat, writeChat: async (value, metadata) => { writes.push({ chat: structuredClone(value), metadata }); await save('chat.json', value) }, readChat: () => json('chat.json'), readCard: () => chat.cardDefinitionSnapshot ? structuredClone(chat.cardDefinitionSnapshot) : json('card.json'), worldBooks: library, scriptDispatch: {} })
+  const adapter = createTavernScriptHostAdapter({ hasScripts: async () => true, extensionSettings, resolveChat: async () => chat, writeChat: async (value, metadata) => { writes.push({ chat: structuredClone(value), metadata }); await save('chat.json', value) }, readChat: () => json('chat.json'), readCard: () => json('card.json'), worldBooks: library, scriptDispatch: {} })
   return { adapter, library, extensionSettings, chat, writes,
     readChat: () => json('chat.json'), readCard: () => json('card.json'), readExtra: () => json('extra.json'),
     read: async () => embedded ? (await json('card.json')).character_book : await json('book.json'),
@@ -49,7 +40,6 @@ export async function createHelperWorldbookHost(embedded = false, multiple = fal
       if (method === 'saveTavernWorldInfo') return adapter.saveWorldInfo('audit', args.name, args.worldInfo, args.expectedWorldInfo)
       if (method === 'getTavernHelperWorldbook') return adapter.getWorldbook('audit', args.name, false, args.knownVersion)
       if (method === 'patchTavernHelperWorldbook') return adapter.patchWorldbook('audit', args.name, args.patch)
-      if (method === 'createTavernHelperWorldbook') return adapter.createWorldbook('audit', args.name)
       if (method === 'replaceTavernHelperWorldbook') return adapter.replaceWorldbook('audit', args.name, args.entries, args.expectedEntries)
       throw Error('Unexpected method: ' + method)
     }

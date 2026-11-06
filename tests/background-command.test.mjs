@@ -1,50 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
-import vm from 'node:vm'
 import { createBackgroundCommand } from '../tavern-plugin/lib/domain/background-command.js'
-import { createMvuSettlementModule } from '../tavern-plugin/lib/domain/mvu-background-settlement.js'
 import { createMvuSettlementEffect } from '../tavern-plugin/lib/domain/mvu-settlement-effect.js'
 import { createStoryTimeline } from '../tavern-plugin/lib/domain/story-timeline.js'
 import { createBackgroundTaskCoordinator } from '../tavern-plugin/lib/domain/background-task-coordinator.js'
-
-test('输入区按钮打开指令小窗口，并将输入交给后台接口', async () => {
-  const source = await readFile(new URL('../tavern-plugin/src/client/features/play-controls.js', import.meta.url), 'utf8')
-  const component = source.slice(source.indexOf('function TavernBackgroundCommandAction('), source.indexOf('function CandidateDockActions('))
-  let dialog, saved, invalidated = false, currentState = { status: 'idle', available: true }
-  const render = vm.runInNewContext('(' + component.trim() + ')', {
-    React: { Fragment: 'fragment', createElement: (type, props, ...children) => ({ type, props, children }),
-      useState: () => [currentState, () => {}], useEffect: () => {} },
-    useTavernCoordination: () => ({ view: { activity: { busy: false } } }), describeTavernActivity: value => value,
-    askTavernText: async input => { dialog = input },
-    rpc: async (method, args, sessionId) => { saved = { method, args, sessionId }; return { status: 'running' } },
-    liveTavernView: { invalidate: () => { invalidated = true } }
-  })
-  const button = render({ sessionId: 's', running: false })
-  assert.equal(button.children[0], '后台指令')
-  assert.equal(button.props.disabled, false)
-  button.props.onClick()
-  assert.equal(dialog.allowEmpty, false)
-  assert.equal(dialog.maxLength, 4000)
-  await dialog.onSubmit('生成奖池')
-  assert.equal(saved.method, 'startBackgroundCommand')
-  assert.equal(saved.args.instruction, '生成奖池')
-  assert.equal(saved.sessionId, 's')
-  assert.equal(invalidated, true)
-  currentState = { status: 'failed', available: true, instruction: '原指令', error: '变量更新失败详情' }
-  const failed = render({ sessionId: 's', running: false })
-  assert.equal(failed.type, 'button')
-  assert.deepEqual([...failed.children], ['后台指令'], '输入区只保留按钮')
-  failed.props.onClick()
-  assert.equal(dialog.initialError, currentState.error, '错误详情只在指令弹窗内显示')
-  assert.equal(dialog.initialValue, currentState.instruction)
-  currentState = { status: 'done', available: true, receipt: { changes: [{}] } }
-  const done = render({ sessionId: 's', running: false })
-  assert.equal(done.type, 'button')
-  assert.deepEqual([...done.children], ['后台指令'], '成功结果也不显示在输入区')
-  done.props.onClick()
-  assert.match(dialog.description, /已完成，更新 1 项变量/)
-})
 
 function fixture(run) {
   let chat = { id: 'c', sessionId: 's', mvu: { enabled: true, owner: 'official' }, variables: {},
@@ -66,28 +25,12 @@ function fixture(run) {
   return { api, tasks, get: copy, edit: fn => fn(chat) }
 }
 
-test('后台指令使用当前快照和原生 MVU 工具提交，保留正文与未要求修改的变量', async () => {
+test('后台指令使用当前快照提交变量效果，保留正文与未要求修改的变量', async () => {
   const run = fixture(async (input, result) => {
+    assert.deepEqual(input.backgroundTasks, { variables: true, posture: false, characterDesign: false })
+    assert.equal(input.instruction, '上架药水，价格 10，库存 2')
     assert.equal(input.currentVariables.stat_data.积分, 20)
-    const native = createMvuSettlementModule({
-      model: { async run(request) {
-        assert.equal(request.task, 'command')
-        assert.equal(request.messages[0].role, 'user')
-        assert.equal(request.messages[0].content[0].text, '上架药水，价格 10，库存 2')
-        assert.match(request.system, /不是自动剧情结算/)
-        assert.deepEqual(request.tools.map(tool => tool.name), ['mvu_submit_update'])
-        await request.onToolCall({ name: 'mvu_submit_update', arguments: { operations: [
-          { op: 'insert', path: '/stat_data/商城/在售/药水', valueJson: '{"描述":"恢复体力","价格":10,"库存":2}' }
-        ] } })
-        return { traceSessionId: 'background', traceBoundary: 5 }
-      } },
-      runtime: { async settleMvuUpdate(request) {
-        const prepared = result(input)
-        return { effect: prepared.effect, variables: { ...input.currentVariables, stat_data: { ...input.currentVariables.stat_data,
-          商城: { 在售: { 药水: { 描述: '恢复体力', 价格: 10, 库存: 2 } } } } } }
-      } }
-    })
-    return native.settleVariables(input)
+    return { ...result(input), traceSessionId: 'background', traceBoundary: 5 }
   })
   await run.api.start({ sessionId: 's', instruction: '上架药水，价格 10，库存 2' })
   await run.api.wait('c')

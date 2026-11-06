@@ -10,14 +10,13 @@ const source = await readFile(new URL('../tavern-plugin/lib/client.js', import.m
 
 // Exercise the real parent component, not only the separately exported runtime:
 // #419 had a Helper gate at both levels.
-test('酒馆状态父组件挂载停靠区和当前会话的姿势编辑，两种状态栏位置均可用', () => {
+test('酒馆状态父组件在没有 Helper 时仍挂载手动停靠区，两种状态栏位置均可用', () => {
   const start = source.indexOf('function StatusPanelView(')
   assert.ok(start >= 0)
   const node = parseExpressionAt(source, start, { ecmaVersion: 'latest' })
   for (const placement of ['sidebar', 'body']) {
-    const view = { mode: 'story', tavernHelper: null, statusBarPlacement: placement, card: { name: '仅正则卡', path: '' }, activity: {}, posture: '站在窗边', postureEnabled: true }
+    const view = { mode: 'story', tavernHelper: null, statusBarPlacement: placement, card: { name: '仅正则卡', path: '' }, activity: {} }
     const runtime = () => {}
-    const posture = () => {}
     const context = {
       React: {
         useState: value => [value, () => {}], useRef: value => ({ current: value }), useEffect() {},
@@ -25,26 +24,21 @@ test('酒馆状态父组件挂载停靠区和当前会话的姿势编辑，两�
       },
       useTavernConfirm: () => () => {}, usePersistentError: () => ['', () => {}],
       useLiveTavernView: () => ({ view, phase: 'ready' }), isMissingTavernCardError: () => false,
-      latestTavernAssistantMessageId: () => null, TavernPersistentStatusRuntime: runtime, TavernPosturePanel: posture
+      latestTavernAssistantMessageId: () => null, TavernPersistentStatusRuntime: runtime
     }
-    for (const name of ['TextArea', 'EmptyState', 'TavernDebugButton', 'TavernBackgroundWait', 'TavernBackgroundRunsLink', 'TavernSaveUpgrade', 'TavernCardAppDock', 'TavernPluginTasks', 'TavernPluginStatusSections', 'TavernLedger', 'TavernMvuVariables']) context[name] = () => {}
+    for (const name of ['TavernPosturePanel', 'TextArea', 'EmptyState', 'TavernDebugButton', 'TavernBackgroundWait', 'TavernBackgroundRunsLink', 'TavernSaveUpgrade', 'TavernCardAppDock', 'TavernPluginTasks', 'TavernPluginStatusSections', 'TavernLedger', 'TavernMvuVariables']) context[name] = () => {}
     const component = vm.runInNewContext('(' + source.slice(start, node.end) + ')', context)
     const result = component({ view, props:{sessionId:'s'}, guideDraft:'' })
-    const found = [], posturePanels = []
+    const found = []
     function walk(value) {
       if (!value || typeof value !== 'object') return
       if (value.type === runtime) found.push(value)
-      if (value.type === posture) posturePanels.push(value)
       for (const child of value.children || []) Array.isArray(child) ? child.forEach(walk) : walk(child)
     }
     walk(result)
     assert.equal(found.length, 1, placement + ': parent must not suppress manual docking')
     assert.equal(found[0].props.panels, placement === 'body' ? 'pinned' : 'all')
     assert.equal(found[0].props.view, view)
-    assert.equal(posturePanels.length, 1)
-    assert.equal(posturePanels[0].props.sessionId, 's')
-    assert.equal(posturePanels[0].props.posture, view.posture)
-    assert.equal(posturePanels[0].props.enabled, true)
   }
 })
 

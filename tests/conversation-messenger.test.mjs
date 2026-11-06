@@ -9,7 +9,7 @@ function fixture(overrides = {}) {
   const submitted = []; let ticks = 0, reads = 0
   const deps = {
     readState: async () => state, readHeader: async () => header,
-    readHistory: async () => { reads++; return { chat: { ...state, messages: [{ role: 'assistant', turn: 1, text: '旧回复' }, { role: 'assistant', turn: 7, text: '本轮正文' }] }, view: { replyProjections: [{ turn: 7, parts: [{ kind: 'html', html: '不应发送的面板' }, { kind: 'markdown', text: '本轮显示正文<think>不应发送的思考</think>' }] }] } } },
+    readHistory: async () => { reads++; return { chat: { ...state, messages: [{ role: 'assistant', turn: 1, text: '旧回复' }, { role: 'assistant', turn: 7, text: '本轮正文' }] }, view: { replyProjections: [{ turn: 7, parts: [{ kind: 'html', html: '不应发送的面板' }, { kind: 'markdown', text: '本轮显示正文<think>不应发送的思考</think>\n\n第二段' }] }] } } },
     activity: () => ({ busy: false }), foreground: () => false,
     prompt: async request => { submitted.push(request) }, demand() {},
     now: () => ticks, wait: async () => { ticks++; header.nativeCommits[7] = { turn: 7, requestId: 'own' } }, timeoutMs: 4, pollMs: 1,
@@ -22,7 +22,7 @@ test('原生发送沿用 SessionController；按 requestId 定位正文，结算
   let settlements = 0
   const f = fixture({ activity: () => ({ busy: settlements++ === 2 }) })
   const result = await f.messenger.send(binding, '你好', { requestId: 'own' })
-  assert.equal(result.turn, 7); assert.equal(result.text, '本轮显示正文')
+  assert.equal(result.turn, 7); assert.equal(result.text, '本轮显示正文\n\n第二段')
   assert.deepEqual(f.submitted[0], { sessionId: binding.sessionId, requestId: 'own', mode: 'followup', content: [{ type: 'text', text: '你好' }] })
   assert.equal(f.reads(), 1)
 })
@@ -50,16 +50,4 @@ test('撤销请求能中止等待，纯 HTML 回复不会回退发送原始面�
   await assert.rejects(f.messenger.send(binding, '你好', { requestId: 'own', signal: abort.signal }), /停用/)
   const html = fixture({ readHistory: async () => ({ chat: { id: binding.chatId, sessionId: binding.sessionId, messages: [{ role: 'assistant', turn: 7, text: '<script>private()</script>' }] }, view: { replyProjections: [{ turn: 7, parts: [{ kind: 'html', html: '<script>private()</script>' }] }] } }) })
   await assert.rejects(html.messenger.send(binding, '你好', { requestId: 'own' }), /没有可发送/)
-})
-
-test('显示投影中的多段文字保留段落边界，过滤 HTML 与思考后交给 QQ 分条', async () => {
-  const f = fixture({ readHistory: async () => ({
-    chat: { id: binding.chatId, sessionId: binding.sessionId, messages: [{ role: 'assistant', turn: 7, text: '不直接发送原始正文' }] },
-    view: { replyProjections: [{ turn: 7, parts: [
-      { kind: 'markdown', text: '在呢' }, { kind: 'html', html: '<div>状态栏</div>' },
-      { kind: 'markdown', text: '<think>隐藏内容</think>刚忙完\n\n怎么啦' }
-    ] }] }
-  }) })
-  const result = await f.messenger.send(binding, '你好', { requestId: 'own' })
-  assert.equal(result.text, '在呢\n\n刚忙完\n\n怎么啦')
 })
