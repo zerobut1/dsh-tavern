@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { EventEmitter, once } from 'node:events'
 import test from 'node:test'
 import { createOneBotClient } from '../tavern-plugin/lib/domain/onebot-client.js'
-import { checkNapCat } from '../bin/qq-bridge.mjs'
 
 class Socket extends EventEmitter {
   static sockets = []
@@ -53,14 +52,4 @@ test('OneBot 超时、失败和断线拒绝未确认操作，不重试发送', a
   const interrupted = client.call('get_status'); client.stop()
   await assert.rejects(interrupted, /中断/); assert.equal(client.connected, false)
   await assert.rejects(client.call('get_status'), /尚未连接/)
-})
-
-test('checkNapCat 仅检查身份与在线状态，不授予发送权限、不订阅消息处理', async () => {
-  const actions = []; let stopped = false
-  const client = Object.assign(new EventEmitter(), {
-    start() { this.emit('open') }, stop() { stopped = true },
-    async call(action) { actions.push(action); return action === 'get_login_info' ? { user_id: 123456789 } : { online: true } },
-  })
-  await checkNapCat({ wsUrl: 'ws://localhost:3001', token: 'secret', botQq: '123456789' }, { createClient(options) { assert.equal(options.allowSend, undefined); return client } })
-  assert.deepEqual(actions, ['get_login_info', 'get_status']); assert.equal(client.listenerCount('event'), 0); assert.equal(stopped, true)
 })

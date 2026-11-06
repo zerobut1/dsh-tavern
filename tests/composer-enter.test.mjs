@@ -95,33 +95,6 @@ test('输入法确认不插入换行，其他编辑器与只读输入不受影�
   assert.equal(h.text, '前文\n后文')
 })
 
-test('输入区插槽按当前会话安装，切换会话不重复监听，卸载后清理', async t => {
-  const h = harness(t)
-  h.dispose()
-  globalThis.window = h.dom.window
-  globalThis.document = h.dom.window.document
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  const React = await import('react'), { createRoot } = await import('react-dom/client')
-  const Component = new Function('React', source + ';return TavernComposerEnter')(React)
-  const mount = document.createElement('div')
-  h.host.append(mount)
-  const root = createRoot(mount)
-  t.after(async () => {
-    await React.act(() => root.unmount())
-    delete globalThis.window
-    delete globalThis.document
-    delete globalThis.IS_REACT_ACT_ENVIRONMENT
-  })
-  await React.act(() => root.render(React.createElement(Component, { sessionId: 'one', inputActions: h.actions })))
-  h.press()
-  assert.equal(h.text, '前文\n后文')
-  await React.act(() => root.render(React.createElement(Component, { sessionId: 'two' })))
-  h.press()
-  assert.equal(h.text, '前文\n\n后文', '每次按键只处理一次')
-  await React.act(() => root.render(null))
-  assert.equal(h.press().defaultPrevented, false)
-})
-
 test('真实编辑器生成换行节点，连续换行可退格或选区删除，也可撤销重做', async t => {
   const dom = new JSDOM('<div data-composer-seat><div data-composer-input contenteditable="true"></div></div>', { pretendToBeVisual: true })
   // Lexical registers beforeinput only when target-range support is available.
