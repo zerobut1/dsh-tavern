@@ -6,25 +6,29 @@ const binding = { sessionId: 'session-test', chatId: 'chat-test' }
 function fixture(overrides = {}) {
   const state = { id: binding.chatId, sessionId: binding.sessionId, mode: 'story', requestMode: 'dsh' }
   const header = { nativeCommits: { 1: { turn: 1, requestId: 'unrelated' } } }
+  const projection = { turn: 7, parts: [{ kind: 'html', html: '不应发送的面板' }, { kind: 'markdown', text: '本轮显示正文<think>不应发送的思考</think>\n\n第二段' }] }
   const submitted = []; let ticks = 0, reads = 0
   const deps = {
     readState: async () => state, readHeader: async () => header,
-    readHistory: async () => { reads++; return { chat: { ...state, messages: [{ role: 'assistant', turn: 1, text: '旧回复' }, { role: 'assistant', turn: 7, text: '本轮正文' }] }, view: { replyProjections: [{ turn: 7, parts: [{ kind: 'html', html: '不应发送的面板' }, { kind: 'markdown', text: '本轮显示正文<think>不应发送的思考</think>\n\n第二段' }] }] } } },
+    readHistory: async () => { reads++; return { chat: { ...state, messages: [{ role: 'assistant', turn: 1, text: '旧回复' }, { role: 'assistant', turn: 7, text: '本轮正文' }] }, view: { replyProjections: [projection] } } },
     activity: () => ({ busy: false }), foreground: () => false,
     prompt: async request => { submitted.push(request) }, demand() {},
     now: () => ticks, wait: async () => { ticks++; header.nativeCommits[7] = { turn: 7, requestId: 'own' } }, timeoutMs: 4, pollMs: 1,
     ...overrides,
   }
-  return { messenger: createConversationMessenger(deps), state, header, submitted, deps, reads: () => reads }
+  return { messenger: createConversationMessenger(deps), state, header, submitted, deps, projection, reads: () => reads }
 }
 
 test('原生发送沿用 SessionController；按 requestId 定位正文，结算后只投递显示文字', async () => {
-  let settlements = 0
-  const f = fixture({ activity: () => ({ busy: settlements++ === 2 }) })
-  const result = await f.messenger.send(binding, '你好', { requestId: 'own' })
-  assert.equal(result.turn, 7); assert.equal(result.text, '本轮显示正文\n\n第二段')
-  assert.deepEqual(f.submitted[0], { sessionId: binding.sessionId, requestId: 'own', mode: 'followup', content: [{ type: 'text', text: '你好' }] })
-  assert.equal(f.reads(), 1)
+  for (const compact of [false, true]) {
+    let settlements = 0
+    const f = fixture({ activity: () => ({ busy: settlements++ === 2 }) })
+    if (compact) { f.projection.mode = 'markdown'; f.projection.text = f.projection.parts[1].text; delete f.projection.parts }
+    const result = await f.messenger.send(binding, '你好', { requestId: 'own' })
+    assert.equal(result.turn, 7); assert.equal(result.text, '本轮显示正文\n\n第二段')
+    assert.deepEqual(f.submitted[0], { sessionId: binding.sessionId, requestId: 'own', mode: 'followup', content: [{ type: 'text', text: '你好' }] })
+    assert.equal(f.reads(), 1)
+  }
 })
 
 test('无匹配请求提交时超时，不能误取其他会话或旧回复', async () => {
@@ -48,6 +52,9 @@ test('撤销请求能中止等待，纯 HTML 回复不会回退发送原始面�
   const abort = new AbortController()
   const f = fixture({ wait: async () => { abort.abort(new Error('停用')) } })
   await assert.rejects(f.messenger.send(binding, '你好', { requestId: 'own', signal: abort.signal }), /停用/)
-  const html = fixture({ readHistory: async () => ({ chat: { id: binding.chatId, sessionId: binding.sessionId, messages: [{ role: 'assistant', turn: 7, text: '<script>private()</script>' }] }, view: { replyProjections: [{ turn: 7, parts: [{ kind: 'html', html: '<script>private()</script>' }] }] } }) })
-  await assert.rejects(html.messenger.send(binding, '你好', { requestId: 'own' }), /没有可发送/)
+  for (const compact of [false, true]) {
+    const projection = { turn: 7, mode: 'html', ...(compact ? { text: '<script>private()</script>' } : { parts: [{ kind: 'html', html: '<script>private()</script>' }] }) }
+    const html = fixture({ readHistory: async () => ({ chat: { id: binding.chatId, sessionId: binding.sessionId, messages: [{ role: 'assistant', turn: 7, text: '<script>private()</script>' }] }, view: { replyProjections: [projection] } }) })
+    await assert.rejects(html.messenger.send(binding, '你好', { requestId: 'own' }), /没有可发送/)
+  }
 })

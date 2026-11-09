@@ -38,7 +38,11 @@ export function createConversationMessenger({ readState, readHeader, readHistory
           const row = chat.messages?.find(item => item.role === 'assistant' && Number(item.turn) === Number(commit.turn))
           if (!row) throw new Error('本轮正文已被回退或删除，没有向 QQ 发送内容')
           const projection = view?.replyProjections?.find(item => Number(item.turn) === Number(commit.turn))
-          const body = projection ? (projection.parts || []).filter(part => part.kind === 'markdown').map(part => part.text).join('\n\n') : row.text
+          // Plain Markdown projections may omit redundant parts after compaction.
+          // A present HTML-only projection must still never fall back to raw text.
+          const body = projection ? (Array.isArray(projection.parts)
+            ? projection.parts.filter(part => part.kind === 'markdown').map(part => part.text).join('\n\n')
+            : projection.mode === 'html' ? '' : projection.text) : row.text
           const reply = String(body || '').replace(/<(think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '').trim()
           if (!reply) throw new Error('本轮没有可发送的文字正文（HTML 面板不会发送到 QQ）')
           return { text: reply, turn: commit.turn, requestId }
