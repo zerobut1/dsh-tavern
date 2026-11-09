@@ -14,6 +14,14 @@
 // floorOffset, messages:[{absoluteIndex, key, legacyTurn, nativeTurn, floorNo, messageUid, message}]}，
 // 由 lib/domain/story-transcript.js 的 projectStoryTranscript 产出。
 
+// Card scripts address stored messages by absolute index, never by a native turn
+// or an assistant floor number (both can differ after regeneration).
+function tavernStoryTranscriptScriptLayer(row, sessionId, runtimePolicy) {
+	if (row?.role !== 'assistant' || row.streaming || runtimePolicy?.trustedCardMode !== true
+		|| !Number.isSafeInteger(row.absoluteIndex) || row.absoluteIndex < 0 || !sessionId) return null
+	return { sessionId: String(sessionId), messageId: row.absoluteIndex }
+}
+
 // 故事行正文：持久消息可能是 {text}（story 存档）、{message}（Helper 旁路）或
 // content 块数组（宿主修复行）。取不到文本时返回空串，不猜测。
 function tavernStoryTranscriptMessageText(message) {

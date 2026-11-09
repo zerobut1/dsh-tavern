@@ -10,8 +10,10 @@ const upstreamUnits = [
   'header-shortcuts', 'conversation-header', 'conversation-background-model', 'session-view-projection',
   'card-preparation', 'card-opening-previews', 'opening-slash',
   'native-surface-repair', 'story-reconciliation', 'transcript-row-plan',
+  'story-transcript', 'story-transcript-reader', 'story-transcript-data',
   'conversation-fork-point', 'conversation-fork-targets', 'conversation-fork',
   'compaction-request', 'worldbook-library', 'helper-worldbook-api', 'helper-api-completeness', 'play-card-snapshot',
+  'worldbook-channel-placement',
   'preset-library', 'regex-manager', 'tavern-regex-order', 'reply-presentation', 'history-tool-call',
   'manual-panel-docking', 'foreground-orchestration-strategies', 'tavern-http-origin',
 ]

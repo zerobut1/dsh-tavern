@@ -62,9 +62,12 @@ test('一致的存档不写任何东西', () => {
   assert.deepEqual(h.session.surface.nodes, before)
 })
 
-test('开局旁白与未删除的开场合并一次，压缩后不把旧开局重新插入', () => {
+test('空白分叉合并开场与旁白一次，压缩后不把旧开局重新插入', () => {
   const h=game(2)
   h.chat.messages.splice(1,0,{role:'system',text:'旁白设定'})
+  const prefix = sessionEvents(h.session)[0]
+  h.session = Session.create('blank-fork')
+  appendSessionEvent(h.session, prefix.type, prefix.data, { surfaceOp: 'append' })
   repair(h)
   assert.equal(nodeTexts(h.session)[1],'开场\n\n旁白设定')
   assert.equal(plan(h).status,'intact')

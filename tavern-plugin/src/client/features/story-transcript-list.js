@@ -504,6 +504,7 @@ function createTavernStoryTranscriptFeature(deps) {
 			},
 			frameSizing: props.helperView && props.helperView.tavernRuntimePolicy && props.helperView.tavernRuntimePolicy.frameSizing,
 			trustedCardMode: trustedCardMode,
+			scriptLayer: tavernStoryTranscriptScriptLayer(row, props.sessionId, props.helperView?.tavernRuntimePolicy),
 			frameOwner: props.frameOwner,
 			executeSlash: props.executeSlash,
 			scriptLayer: scriptLayer,

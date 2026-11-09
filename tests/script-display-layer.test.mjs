@@ -2,11 +2,21 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { JSDOM } from 'jsdom'
+import { sourceFunction } from './fixtures/source-function.mjs'
 
 const hostSource = await readFile(new URL('../tavern-plugin/src/client/runtime/helper-host.js', import.meta.url), 'utf8')
 const css = await readFile(new URL('../tavern-plugin/lib/client-assets/tavern.css', import.meta.url), 'utf8')
 const pendingCss = css.slice(0, css.indexOf('/* Tavern components'))
 const { mount, layers } = new Function(hostSource + ';return {mount:mountTavernScriptLayer,layers:tavernScriptLayers}')()
+
+test('故事楼层按绝对消息位置提供脚本正文，生成中及未信任卡片不接管', async () => {
+  const source = await readFile(new URL('../tavern-plugin/src/client/features/story-transcript-data.js', import.meta.url), 'utf8')
+  const layer = new Function(sourceFunction(source, 'tavernStoryTranscriptScriptLayer') + ';return tavernStoryTranscriptScriptLayer')()
+  const row = { role: 'assistant', absoluteIndex: 12, floorNo: 3, legacyTurn: 7 }
+  assert.deepEqual(layer(row, 'session', { trustedCardMode: true }), { sessionId: 'session', messageId: 12 })
+  assert.equal(layer({ ...row, streaming: true }, 'session', { trustedCardMode: true }), null)
+  assert.equal(layer(row, 'session', { trustedCardMode: false }), null)
+})
 
 test('脚本可扫描待接管正文，角色名改写后才显示副本并保留点击事件', async t => {
   const dom = new JSDOM('<style>' + pendingCss + '</style><div class="dsh-tavern-script-part"><div id="native"><p>千纱向你挥手。</p><button>原生按钮</button></div><div class="mes_text dsh-tavern-script-layer" data-dsh-script-layer data-session="s" data-mesid="0"></div></div>')
