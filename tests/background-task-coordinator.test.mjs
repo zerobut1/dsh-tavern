@@ -36,15 +36,17 @@ function coordinatorHarness(options = {}) {
   return { coordinator, timeline, current: function () { return current }, writes }
 }
 
-test('手动后台指令与自动结算共用书记任务槽和会话', async () => {
-  const { coordinator, current } = coordinatorHarness()
-  const settlement = await coordinator.begin(current(), 'settlement')
-  await assert.rejects(coordinator.begin(current(), 'command'), error => error.code === 'BACKGROUND_BUSY')
-  await settlement.commit({ participant: { sessionId: 'scribe', lifetime: 'chat', boundary: 12 } })
-  const command = await coordinator.begin(current(), 'command')
-  assert.equal(command.participantRequest.sessionId, 'scribe')
-  await assert.rejects(coordinator.begin(current(), 'settlement'), error => error.code === 'BACKGROUND_BUSY')
-  await command.commit({ stateChanged: false })
+test('旧存档中断的手动指令可释放书记任务槽并保留已存变量', async () => {
+  const { coordinator, current, timeline } = coordinatorHarness()
+  const messages = [{ role: 'assistant', text: '已存正文', variables: [{ stat_data: { 金币: 12 } }] }]
+  const old = timeline.apply({ chat: { ...current(), messages }, intent: { kind: 'agent.begin', role: 'command' } })
+  Object.assign(current(), old.chat, { backgroundCommandTask: { status: 'running', operationId: old.value.operationId } })
+  assert.equal(coordinator.activity(current(), 'background').busy, true)
+  await coordinator.recover(current())
+  assert.equal(coordinator.activity(current(), 'background').busy, false)
+  assert.deepEqual(current().messages, messages)
+  const task = await coordinator.begin(current(), 'settlement')
+  await task.commit({ stateChanged: false })
 })
 
 for (const conflict of [false,true,'cancel']) test(`narrow background mutations preserve concurrent history: ${conflict}`,async t=>{

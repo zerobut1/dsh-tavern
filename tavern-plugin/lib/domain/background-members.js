@@ -16,7 +16,7 @@ export const TIMELINE_MEMBERS = Object.freeze(BACKGROUND_MEMBERS.filter(member =
 
 // Coordinator roles (and runner tasks) by the member whose Session and slot they use: each
 // task's own `member` in the task table, and roles retired from it still found in old saves.
-const RETIRED_ROLE_MEMBER = Object.freeze({ 'worldbook-filter': 'background', 'style-reference': 'background' })
+const RETIRED_ROLE_MEMBER = Object.freeze({ command: 'background', 'worldbook-filter': 'background', 'style-reference': 'background' })
 
 export function memberOf(role) {
   const key = String(role || '')

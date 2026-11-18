@@ -420,6 +420,23 @@ export function normalizeMvuProviderSubmission(value) {
 function valueKind(value) {
   return Array.isArray(value) ? '列表' : value !== null && typeof value === 'object' ? '对象' : typeof value === 'number' ? '数字' : typeof value === 'boolean' ? '布尔值' : value === null ? '空值' : '文本'
 }
+// Catch misplaced existing fields before MVU silently strips an unknown key.
+// New dictionary keys remain valid; suggest a correction only for an existing suffix.
+function assertMvuPaths(operations, variables) {
+  const root = object(variables?.stat_data)
+  for (const operation of operations) {
+    for (const path of operationPointers(operation)) {
+      if (valueAtPointer(variables, path).exists) continue
+      const keys = pointerSegments(path).slice(1)
+      for (let skip = 1; skip < keys.length - 1; skip++) {
+        const candidate = '/stat_data/' + keys.slice(skip).map(pointerSegment).join('/')
+        if (Object.hasOwn(root, keys[skip]) && valueAtPointer(variables, candidate).exists) {
+          throw new Error('变量路径不存在：' + path + '；当前快照中对应路径为 ' + candidate + '。请以变量结构和当前快照为准，修正完整 operations，不要省略失败项。')
+        }
+      }
+    }
+  }
+}
 const SCHEMA_KINDS = { string: '文本', number: '数字', boolean: '布尔值' }
 // A write that changes a field's type makes MVU's schema diverge and the card's view
 // mis-render; number <-> text too: a text 1999 sent without quotes would be stored as a
@@ -625,6 +642,7 @@ export function projectMvuBackgroundRequest(frame) {
     system: promptSection('variable_settlement', [
       PROMPT_PROSE.p011,
       PROMPT_PROSE.p012,
+      '变量路径以【变量结构】和【当前变量快照】的实际层级为准；人物卡文字规则中的分组名称不代表嵌套关系。提交前逐级核对路径，重试时修正失败项，不得仅删掉失败项来报告成功。',
       ...(tasks.characterDesign ? [PROMPT_PROSE.p013] : []),
       tasks.posture ? PROMPT_PROSE.p014 : PROMPT_PROSE.p015,
       PROMPT_PROSE.p016,
@@ -807,6 +825,7 @@ export function createMvuSettlementModule(options = {}) {
       try {
         if (!call || call.name !== MVU_SUBMIT_UPDATE_TOOL_NAME) throw new Error('后台 Agent 调用了未授权的变量工具')
         submission = resolveMvuSubmissionMacros(normalizeMvuToolSubmission(call.arguments), input)
+        assertMvuPaths(submission.operations, input.currentVariables)
         assertMvuValueKinds(submission.operations, input.currentVariables)
         if (feedback && submission.operations.length === 0) throw new Error('上一批更新未通过校验，请修正完整 operations，不能用空数组跳过失败')
       } catch (error) {

@@ -59,3 +59,21 @@ test('数字与文本互换同样退回重提：漏了引号的 1999 不会悄�
   assert.match(ticket.error,/\/stat_data\/票号\/- 的列表元素 当前是文本，提交的是数字/)
   assert.equal(ticket.dispatched[0].value,'7')
 })
+
+test('misnested existing MVU paths return the actual path before invoking the runtime', async () => {
+  let calls = 0
+  let rejected
+  const variables = { stat_data: { 宿主: { 姓名: '角色' }, 身体: { 穿着: { 上衣: '旧衣' } } } }
+  const module = createMvuSettlementModule({
+    model: { async run(input) {
+      rejected = JSON.parse(await input.onToolCall({ name: 'mvu_submit_update', arguments: { operations: [{ op: 'replace', path: '/stat_data/宿主/身体/穿着/上衣', valueJson: '"新衣"' }] } }))
+      await input.onToolCall({ name: 'mvu_submit_update', arguments: { operations: [{ op: 'replace', path: '/stat_data/身体/穿着/上衣', valueJson: '"新衣"' }] } })
+      return {}
+    } },
+    runtime: { async settleMvuUpdate() { calls++; return { variables: { stat_data: { ...variables.stat_data, 身体: { 穿着: { 上衣: '新衣' } } } } } } }
+  })
+  const result = await module.settleVariables({ operationId: 'paths', chatId: 'c', branchId: 'b', basedOnRevision: 1, messageId: 0, swipeId: 0, storyText: '换了新衣。', currentVariables: variables, backgroundTasks: { posture: false } })
+  assert.equal(calls, 1)
+  assert.match(rejected.error, /当前快照中对应路径为 \/stat_data\/身体\/穿着\/上衣/)
+  assert.equal(result.receipt.status, 'updated')
+})
