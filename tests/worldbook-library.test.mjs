@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { createOpeningPreparation } from '../tavern-plugin/lib/domain/opening-preparation.js'
 import { createWorldBookLibrary } from '../tavern-plugin/lib/domain/worldbook-library.js'
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
@@ -194,3 +195,20 @@ for (const source of [{ kind: 'standalone', path: 'worldbooks/王都.json' }, { 
     assert.ok((await library.get(source)).view.entries.some(entry => entry.content === '丙'))
   })
 }
+
+test('准备页对独立世界书的增量写入检查版本，保留主书与并发写入', async t => {
+  const { library, cards } = harness()
+  const card = cards.get('cards/命运.json')
+  const preparation = createOpeningPreparation({ readCard: async () => card, worldBooks: library })
+  t.after(() => preparation.dispose())
+  const draft = await preparation.create('cards/命运.json', { runtime: true })
+  const call = (method, args) => preparation.callRuntime(draft.id, method, args)
+  const { worldbook } = await call('getTavernHelperWorldbook', { name: '王都' })
+  const patch = { version: worldbook.version, upserts: [{ ...worldbook.entries[0], content: '新城门' }] }
+  const write = () => call('patchTavernHelperWorldbook', { name: '王都', patch })
+  const outcomes = await Promise.allSettled([write(), write()])
+  assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1)
+  assert.match(outcomes.find(item => item.status === 'rejected').reason.message, /重新读取/)
+  assert.equal((await library.named('王都')).view.entries[0].content, '新城门')
+  assert.equal((await call('getTavernHelperWorldbook', { name: 'current' })).worldbook.entries[0].content, '钟楼只在午夜开放。')
+})

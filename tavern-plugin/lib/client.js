@@ -20810,8 +20810,7 @@ function tavernModelRefusalNotice(text) {
 		  const original = preview.runtime ? {
 		    host: window.SillyTavern, helper: window.TavernHelper,
 		    getChatMessages: window.getChatMessages, setChatMessages: window.setChatMessages,
-		    waitGlobalInitialized: window.waitGlobalInitialized,
-		    getWorldbook: window.getWorldbook, updateWorldbookWith: window.updateWorldbookWith
+		    waitGlobalInitialized: window.waitGlobalInitialized
 		  } : null;
 		  const swipes = preview.swipes.slice();
 		  let selected = preview.selectedIndex;

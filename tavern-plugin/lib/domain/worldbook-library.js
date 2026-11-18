@@ -147,7 +147,7 @@ export function createWorldBookLibrary(options = {}) {
     const matches = (await namedBooks()).filter(book => book.name === name)
     if (matches.length > 1) throw new Error('世界书名称重复，无法确定目标: ' + name)
     if (!matches.length) throw new Error('世界书不存在: ' + name)
-    return await readRecord({ kind: 'standalone', path: matches[0].path })
+    return await readSource({ kind: 'standalone', path: matches[0].path })
   }
   const creations = new Map()
   async function create(name) {
@@ -554,7 +554,8 @@ export function createWorldBookLibrary(options = {}) {
     // A view the panel already holds may come from the same revision: reuse it
     // instead of parsing the book again for every single switch.
     const record = await readSource(sourceOf(locator))
-    const changed = updateWorldBookDocument(record.document, request)
+    const change = typeof request === 'function' ? request(record.view) : request
+    const changed = updateWorldBookDocument(record.document, change)
     if (record.source.kind === 'card') {
       await cards.update(record.source.cardPath, { character_book: changed.document })
       return await forClient(await publish(record.source, changed.document, changed.view))

@@ -255,15 +255,29 @@ export function createOpeningPreparation({ readCard, worldBooks, generate, gener
         return { created, names: draft.worldbookNames }
       }
       if (method === 'loadTavernWorldInfo') return { worldInfo: exportSillyTavernWorldBook(draft.document) }
-      if (['getTavernHelperWorldbook', 'replaceTavernHelperWorldbook'].includes(method)
+      if (['getTavernHelperWorldbook', 'replaceTavernHelperWorldbook', 'patchTavernHelperWorldbook'].includes(method)
           && args.name && args.name !== 'current' && args.name !== draft.worldBookView?.displayName) {
         const record = await worldBooks.named(args.name)
-        const current = projectTavernHelperWorldbook(record.view)
-        if (method === 'getTavernHelperWorldbook') return { worldbook: current }
-        if (args.expectedEntries !== undefined && JSON.stringify(current.entries) !== JSON.stringify(args.expectedEntries)) throw new Error('世界书已被其他操作修改，请重新读取后重试')
-        const operations = replaceTavernHelperWorldbookOperations(record.view, args.entries)
-        const updated = await worldBooks.update(record.source, { operations })
-        return { updated: operations.length > 0, worldbook: projectTavernHelperWorldbook(updated.view) }
+        if (method === 'getTavernHelperWorldbook') {
+          const book = projectTavernHelperWorldbook(record.view)
+          const version = tavernHelperWorldbookVersion(book.entries)
+          return { worldbook: args.knownVersion === version ? { name: book.name, version, unchanged: true } : { ...book, version } }
+        }
+        const patching = method === 'patchTavernHelperWorldbook'
+        let before
+        const result = await worldBooks.update(record.source, view => {
+          before = projectTavernHelperWorldbook(view).entries
+          if (patching ? tavernHelperWorldbookVersion(before) !== args.patch?.version
+              : args.expectedEntries !== undefined && JSON.stringify(before) !== JSON.stringify(args.expectedEntries)) {
+            throw new Error('世界书已被其他操作修改，请重新读取后重试')
+          }
+          const entries = patching ? patchTavernHelperWorldbookEntries(before, args.patch) : args.entries
+          return { operations: replaceTavernHelperWorldbookOperations(view, entries) }
+        })
+        const book = projectTavernHelperWorldbook(result.view)
+        const version = tavernHelperWorldbookVersion(book.entries)
+        return { updated: version !== tavernHelperWorldbookVersion(before), worldbook: patching
+          ? { name: book.name, version, ...tavernHelperWorldbookChanges(before, book.entries) } : book }
       }
       if (method === 'getTavernHelperWorldbook') {
         const worldbook = draft.document ? projectTavernHelperWorldbook(inspectWorldBookDocument(draft.document)) : null
