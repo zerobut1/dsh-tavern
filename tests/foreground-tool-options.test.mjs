@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { STORY_SUBMIT_PROMPT_STRICT, STORY_INPUT_ONLY_PROMPT } from '../tavern-plugin/lib/domain/story-tool-submission.js'
 import { createNativePlayOrchestrationStrategy } from '../tavern-plugin/lib/domain/foreground-orchestration-strategies.js'
 
 test('两个全局开关独立生效，本局覆盖同时控制历史、确认消息和输出协议', async () => {
@@ -17,7 +18,7 @@ test('两个全局开关独立生效，本局覆盖同时控制历史、确认�
     assert.equal(stagedRequests.get('game').storyOutputToolCall, local ?? output)
     const assembled = await strategy.assembleSystemPrompt({ tools: [{ name: 'submit_story' }] }, { sessionId: 'game', chat })
     const policy = assembled.sections.find(section => section.name === 'tavern:story-tool-submission')
-    if (offered) assert.match(policy.text, (local ?? output) ? /本轮所有面向玩家的输出/ : /本轮请直接输出正文/)
+    if (offered) assert.equal(policy.text, (local ?? output) ? STORY_SUBMIT_PROMPT_STRICT : STORY_INPUT_ONLY_PROMPT)
     else assert.equal(policy, undefined)
   }
 })

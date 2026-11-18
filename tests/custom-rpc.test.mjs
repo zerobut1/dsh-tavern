@@ -13,7 +13,7 @@ test('停止后台结算同时取消手动后台指令，过期操作不能取�
     },
     pluginApi: { stopTasks: id => events.push(['plugin', id]) },
     backgroundCommand: { stop: id => events.push(['command', id]) },
-    backgroundAgentRunner: { cancel: id => events.push(['agent', id]) },
+    backgroundAgentRunner: { cancel: (id, scope) => events.push(['agent', id, scope?.task]) },
     cancelSettlement: async (id, options) => events.push(['settlement', id, options]),
     readChatCard: async () => ({}), view: async row => row
   })
@@ -21,7 +21,7 @@ test('停止后台结算同时取消手动后台指令，过期操作不能取�
   assert.deepEqual(events, [])
   assert.equal((await stopBackground('session', 'operation')).stopped, true)
   assert.deepEqual(events, [
-    ['plugin', 'session'], ['command', 'chat'], ['agent', 'session'],
+    ['agent', 'session', 'stage-director'], ['plugin', 'session'], ['command', 'chat'], ['agent', 'session', undefined],
     ['settlement', 'chat', { wait: false }], 'recover'
   ])
 })

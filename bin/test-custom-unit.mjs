@@ -15,14 +15,13 @@ const upstreamUnits = [
   'compaction-request', 'worldbook-library', 'helper-worldbook-api', 'helper-api-completeness', 'play-card-snapshot',
   'worldbook-channel-placement',
   'preset-library', 'regex-manager', 'tavern-regex-order', 'reply-presentation', 'history-tool-call',
-  'manual-panel-docking', 'foreground-orchestration-strategies', 'tavern-http-origin',
+  'manual-panel-docking', 'foreground-orchestration-strategies', 'tavern-http-origin', 'turn-output-limit',
 ]
 // Minimal custom units: in-memory ports or self-owned temporary fixtures only.
 // No DSH installation/user data, ffmpeg, listening ports, browser or model API.
 const customUnits = [
-  'background-session-retirement', 'background-agent-lifecycle', 'background-command', 'custom-rpc',
-  'composer-enter', 'conversation-background', 'foreground-tool-options', 'story-submission-guard',
-  'persistent-status-view', 'worldbook-placement', 'helper-worldbook-creation', 'preset-editor', 'posture-editor',
+  'composer-enter', 'conversation-background', 'foreground-tool-options',
+  'persistent-status-view', 'worldbook-placement', 'helper-worldbook-creation', 'preset-editor',
   'inline-card-prose', 'script-display-layer', 'qq-bridge', 'conversation-messenger', 'onebot-client',
 ]
 if (process.argv.length > 2) {
