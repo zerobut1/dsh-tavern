@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { isNewTurnInput } from './session-turn-input.js'
+import { storyToolCallSelection } from './story-tool-submission.js'
 
 function clone(value) {
   return value === undefined ? undefined : structuredClone(value)
@@ -63,6 +64,10 @@ export function forkConversationChat(source, options = {}) {
   const checkpoints = Array.isArray(sourceTimeline.checkpoints) ? sourceTimeline.checkpoints : []
   const latestCheckpoint = checkpoints[checkpoints.length - 1]
   const chat = clone(source)
+  const toolCalls = options.storyToolCall === undefined ? storyToolCallSelection(source) : options.storyToolCall
+  if (typeof toolCalls === 'boolean') chat.storyToolCall = toolCalls
+  else delete chat.storyToolCall
+  delete chat.storyHistoryToolCall
 
   delete chat._storageRevision
   delete chat.regenRecovery

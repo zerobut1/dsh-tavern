@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { assertConversationExportable, assertConversationForkable } from '../tavern-plugin/lib/domain/conversation-fork.js'
+import { assertConversationExportable, assertConversationForkable, forkConversationChat } from '../tavern-plugin/lib/domain/conversation-fork.js'
 
 function sourceChat() {
   return {
@@ -46,4 +46,19 @@ test('导出检查真实结算任务和时间线，允许遗留的结算标记',
   assert.throws(() => assertConversationExportable(chat, { settlementRunning: true }), /尚未完成状态结算/)
   chat.timeline.operations.completed.background = { phase: 'pending' }
   assert.throws(() => assertConversationExportable(chat), /尚未完成生成或状态结算/)
+})
+
+test('分叉合并旧工具开关，历史分叉继承来源对话当前的统一选择', () => {
+  const source = { ...sourceChat(), storyToolCall: false, storyHistoryToolCall: true }
+  const before = structuredClone(source)
+  const options = { chatId: 'fork', sessionId: 'fork', id: prefix => prefix + '-x' }
+  const inherited = forkConversationChat(source, options)
+  assert.equal(inherited.storyToolCall, true)
+  assert.equal(Object.hasOwn(inherited, 'storyHistoryToolCall'), false)
+  for (const selected of [false, true, null]) {
+    const fork = forkConversationChat(source, { ...options, storyToolCall: selected })
+    assert.equal(fork.storyToolCall, selected ?? undefined)
+    assert.equal(Object.hasOwn(fork, 'storyHistoryToolCall'), false)
+  }
+  assert.deepEqual(source, before)
 })

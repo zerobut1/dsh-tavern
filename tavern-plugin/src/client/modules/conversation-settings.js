@@ -290,6 +290,11 @@ function createConversationSettingsModule({
         return h(packUi.StageSection, { title: "功能", foldKey: FOLD("功能") },
             !data && !config.error ? h(PanelLoading, { shape: "fields", count: 5 }) : null,
             data ? rows(
+                h(InlineField, { kind: "menu", label: "正文走工具调用", controlLabel: "本局正文走工具调用",
+                    help: help("正文走工具调用", "同时控制本轮正文提交和历史回放，从下一次请求生效。"),
+                    value: data.storyToolCall == null ? "inherit" : String(data.storyToolCall), disabled,
+                    options: [{ value: "inherit", label: "跟随全局" }, { value: "true", label: "开启" }, { value: "false", label: "关闭" }],
+                    onCommit: value => { const patch = { storyToolCall: value === "inherit" ? null : value === "true" }; return write(patch, patch); } }),
                 ...FEATURES.filter(([key]) => key !== "posture" || TAVERN_PLAY_FEATURES.postureSummary).map(([key, label, text]) => h(packUi.SwitchRow, { key, label, help: text, disabled,
                     checked: tasks[key] === true, onChange: checked => void task(key, checked) })),
                 h(packUi.SwitchRow, { key: "webSearch", label: "联网搜索", help: "前台和后台可按需搜索。", disabled, checked: data.webSearchEnabled === true,

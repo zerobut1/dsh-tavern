@@ -266,7 +266,7 @@ import { paragraphSpeech } from './domain/paragraph-speech.js'
 import { createDisplayRuntimeCapture } from './domain/display-runtime-capture.js'
 import { createPluginBodyGeneration, configuredBodyGeneration } from './domain/plugin-body-generation.js'
 import { regenerationFrameKey } from './domain/regeneration-frame-cache.js'
-import { STORY_CONTEXT_TOOL_NAME, STORY_GENERATE_TOOL_NAME, createStoryContextTool, createStorySubmissionTool, foldStorySubmission, STORY_SUBMIT_TOOL_NAME } from './domain/story-tool-submission.js'
+import { STORY_CONTEXT_TOOL_NAME, STORY_GENERATE_TOOL_NAME, createStoryContextTool, createStorySubmissionTool, foldStorySubmission, storyToolCallSelection, STORY_SUBMIT_TOOL_NAME } from './domain/story-tool-submission.js'
 import { readHistoryLayoutOverrideFile } from './domain/history-tool-call.js'
 import { installToolCallIdleTimeoutPatch, installToolProtocolFetchPatch } from './domain/tool-protocol-enforcement.js'
 import { createTavernRetryLimiter } from './domain/tavern-retry-limiter.js'
@@ -2926,7 +2926,8 @@ export async function apply(ctx) {
       // Imported rows may contain arbitrary turn labels. Bound how many synthetic
       // events a blank Session can write before publishing a new Chat for it.
       if (storyDirect && lastStoryTurn > 100_000) throw new Error('分叉前缀的轮号超过原生上下文可重建范围')
-      const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn })
+      const fork = forkConversationChat(state, { chatId: uid('chat'), sessionId: targetId, id: uid, now: Date.now, lastNativeTurn,
+        storyToolCall: storyToolCallSelection(source) })
       fork.forkedFrom = { ...fork.forkedFrom, chatId: source.id, sessionId: source.sessionId, storageRevision: source._storageRevision,
         stateChatId: state.id, stateRevision: state._storageRevision, turn, ...(storyDirect ? { messageIndex, atSeq: null } : { atSeq }) }
       if (storyDirect) {

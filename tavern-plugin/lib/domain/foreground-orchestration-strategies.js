@@ -13,6 +13,7 @@ import {
   STORY_SUBMIT_PROMPT_STRICT,
   STORY_SUBMIT_THINK_NOTE,
   STORY_SUBMIT_TOOL_NAME,
+  storyToolCallSelection,
   buildStorySubmitWireSchema
 } from './story-tool-submission.js'
 import { NO_FOREGROUND_TOOLS_PROMPT, normalizeDisabledForegroundTools } from './foreground-tools.js'
@@ -373,9 +374,9 @@ export function createNativePlayOrchestrationStrategy(options) {
       // A replayed transcript calls a tool. Strict providers reject a call whose
       // declaration is missing, so replay only when this turn offers submit_story;
       // the per-game tool switch can still remove it after the global settings say on.
-      const historyWanted = typeof options.historyToolCall === 'function' ? (await options.historyToolCall()) === true : false
+      const historyWanted = storyToolCallSelection(input.chat) ?? (typeof options.historyToolCall === 'function' ? (await options.historyToolCall()) === true : false)
       const pluginGeneration = (await options.bodyGeneration?.(sessionId))?.mode?.startsWith('plugin-')
-      const outputWanted = !pluginGeneration && typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false
+      const outputWanted = !pluginGeneration && (storyToolCallSelection(input.chat) ?? (typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false))
       const thinkWanted = typeof options.storyToolThinking === 'function' ? (await options.storyToolThinking()) === true : false
       const visibleList = typeof options.visibleTools === 'function' ? await options.visibleTools(sessionId) : null
       const submitVisible = visibleList === null || visibleList.includes(STORY_SUBMIT_TOOL_NAME)
@@ -682,7 +683,7 @@ export function createNativePlayOrchestrationStrategy(options) {
     if (playMode) {
       const toolNames = new Set(finalTools.map(schema => schema.name))
       const callableCount = [...toolNames].filter(name => name !== STORY_CONTEXT_TOOL_NAME).length
-      const outputToolCall = typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false
+      const outputToolCall = storyToolCallSelection(input.chat) ?? (typeof options.storyOutputToolCall === 'function' ? (await options.storyOutputToolCall()) === true : false)
       const toolThinking = typeof options.storyToolThinking === 'function' ? (await options.storyToolThinking()) === true : false
       const pluginGeneration = visible.has(STORY_GENERATE_TOOL_NAME)
       if (pluginGeneration) {

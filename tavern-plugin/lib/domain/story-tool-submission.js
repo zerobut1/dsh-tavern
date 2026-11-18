@@ -84,9 +84,17 @@ export function appendStorySubmissionReminder(assembly, outputEnabled) {
   return { ...assembly, sections: [...sections, { name: 'tavern:story-tool-submission-reminder', text: STORY_SUBMIT_REMINDER }] }
 }
 
-/** A Tavern settings switch; it applies to story and script play only. */
+/** Preserve legacy per-conversation choices: either enabled means on. */
+export function storyToolCallSelection(chat) {
+  if (chat?.storyToolCall === true || chat?.storyHistoryToolCall === true) return true
+  if (chat?.storyToolCall === false || chat?.storyHistoryToolCall === false) return false
+  return null
+}
+
+/** Conversation overrides the global default; story and script play only. */
 export function storyToolCallEnabled(chat, enabled) {
-  return enabled === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
+  const selected = storyToolCallSelection(chat) ?? enabled
+  return selected === true && !!chat && (!chat.mode || chat.mode === 'story' || chat.mode === 'script')
 }
 
 function validContent(content) {

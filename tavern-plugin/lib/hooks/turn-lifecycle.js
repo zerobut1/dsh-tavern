@@ -14,7 +14,7 @@ import { turnRepliedByModel } from '../domain/story-alignment.js'
 import { isReservingStoryTurns, isSurfaceEditTurn, sessionEvents } from '../domain/session-events.js'
 import { agentForSession } from '../domain/agent-lookup.js'
 import { VIRTUAL_WORLDBOOK_SECTION, withVirtualWorldbook } from '../domain/worldbook-virtual-surface.js'
-import { appendStorySubmissionReminder, STORY_SUBMIT_TOOL_NAME } from '../domain/story-tool-submission.js'
+import { appendStorySubmissionReminder, storyToolCallEnabled, STORY_SUBMIT_TOOL_NAME } from '../domain/story-tool-submission.js'
 import { extractStreamedToolReplyContent, parsePartialToolReplyJson } from '../domain/tool-reply-stream-parser.js'
 
 // A provider can stop mid-stream (SAFETY, an idle timeout) and DSH then keeps only the
@@ -286,7 +286,7 @@ export function registerTurnLifecycleHooks({
     const pluginContract = assembled.sections?.find(section => section.name === 'tavern:plugin-body-generation')
     if (pluginContract) assembled.sections = [...assembled.sections, { ...pluginContract, name: 'tavern:plugin-body-generation-reminder' }]
     const hasSubmission = (assembled.sections || []).some(section => section.name === 'tavern:story-tool-submission')
-    const outputToolCall = hasSubmission && typeof storyOutputToolCall === 'function' ? (await storyOutputToolCall()) === true : false
+    const outputToolCall = hasSubmission && storyToolCallEnabled(chat, await storyOutputToolCall?.())
     const result = markTavernSectionsLiteral(prependSystemInstruction(appendStorySubmissionReminder(assembled, outputToolCall), chat ? runtimePrompt('system-append') : ''))
     if (deferWorldbook) foregroundStrategies.stageWorldbookSection(context, result.sections.find(section => section.name === VIRTUAL_WORLDBOOK_SECTION))
     const totalMs = Date.now() - startedAt

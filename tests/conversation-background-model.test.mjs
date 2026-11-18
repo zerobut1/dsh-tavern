@@ -25,6 +25,8 @@ test('本局模型保存保留并发更新的剧情，只修改所选游戏，�
   assert.equal(chats.get('one').backgroundModelSelection.reasoningEffort, 'high')
   await call(null)
   assert.equal(chats.get('one').backgroundModelSelection, null)
+  assert.equal((await settings.save({ sessionId: 'one', storyToolCall: false })).storyToolCall, false)
+  assert.equal((await settings.read('one')).storyToolCall, false)
   await assert.rejects(call({}), /配置无效/)
   await assert.rejects(settings.save({ sessionId: 'missing', backgroundModel: null }), /游玩会话/)
 })
