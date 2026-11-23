@@ -28,7 +28,7 @@ test('酒馆状态父组件在没有 Helper 时仍挂载手动停靠区，两种
       useLiveTavernView: () => ({ view, phase: 'ready' }), isMissingTavernCardError: () => false,
       latestTavernAssistantMessageId: () => null, TavernPersistentStatusRuntime: runtime
     }
-    for (const name of ['TavernPosturePanel', 'TextArea', 'EmptyState', 'TavernDebugButton', 'TavernBackgroundWait', 'TavernBackgroundRunsLink', 'TavernSaveUpgrade', 'TavernCardAppDock', 'TavernPluginTasks', 'TavernPluginStatusSections', 'TavernLedger', 'TavernMvuVariables']) context[name] = () => {}
+    for (const name of ['TextArea', 'EmptyState', 'TavernDebugButton', 'TavernBackgroundWait', 'TavernBackgroundRunsLink', 'TavernSaveUpgrade', 'TavernCardAppDock', 'TavernPluginTasks', 'TavernPluginStatusSections', 'TavernLedger', 'TavernMvuVariables']) context[name] = () => {}
     const component = vm.runInNewContext('(' + source.slice(start, node.end) + ')', context)
     const result = component({ view, props:{sessionId:'s'}, guideDraft:'' })
     const found = []
